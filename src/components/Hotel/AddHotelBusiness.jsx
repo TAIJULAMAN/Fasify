@@ -317,12 +317,13 @@ export default function AddHotelBusiness() {
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
-                      <option value="Private Limited">Private Limited</option>
-                      <option value="Public Limited">Public Limited</option>
-                      <option value="Partnership">Partnership</option>
-                      <option value="Sole Proprietorship">
-                        Sole Proprietorship
+                      <option value="Apartment">Apartment</option>
+                      <option value="Hotel">Hotel</option>
+                      <option value="Resort Accommodation">
+                        Resort Accommodation
                       </option>
+                      <option value="Holidays Home">Holidays Home</option>
+                      <option value="Accommodation">Accommodation</option>
                     </select>
                   </div>
                   <div>
