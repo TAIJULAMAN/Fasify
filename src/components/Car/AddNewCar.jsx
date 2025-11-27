@@ -1,710 +1,585 @@
-// =============================
-// ADD NEW CAR (FINAL VERSION)
-// =============================
-
-import React, { useState } from "react";
-import { useForm, Controller } from "react-hook-form";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Button,
-  Card,
-  Input,
-  Select,
-  Upload,
-  Checkbox,
-  Form,
-  Typography,
-  Row,
-  Col,
-} from "antd";
-
-import {
-  UploadOutlined,
-  CarOutlined,
-  SettingOutlined,
-  EnvironmentOutlined,
-  FileTextOutlined,
-  ToolOutlined,
-  PlusOutlined,
-} from "@ant-design/icons";
-
-import Swal from "sweetalert2";
+import { useForm } from "react-hook-form";
+import { toast } from "react-toastify";
 import {
   useCreateCarMutation,
-  useGetCarPartnerMutation,
+  useGetCarBusinessPartnerMutation,
 } from "../../redux/api/car/carApi";
-import { currencyByCountry } from "../curenci";
-
-const { Title, Text } = Typography;
-const { TextArea } = Input;
-const { Option } = Select;
+import Swal from "sweetalert2";
 
 export default function AddNewCar() {
   const navigate = useNavigate();
+  const [selectedRental, setSelectedRental] = useState("");
   const [carImages, setCarImages] = useState([]);
 
-  const [createCar, { isLoading }] = useCreateCarMutation();
-  const [getPartners, { data: partnersData, isLoading: partnersLoading }] =
-    useGetCarPartnerMutation();
+  const [getCarRentals, { data: partnerData, isLoading: isPartnerLoading }] =
+    useGetCarBusinessPartnerMutation();
+  const [createCar, { isLoading: isCreating }] = useCreateCarMutation();
 
-  // Fetch partners on component mount
-  React.useEffect(() => {
-    getPartners({ page: 1, limit: 100 });
-  }, [getPartners]);
-
-  console.log(partnersData, "partnersData");
-
-  // Extract unique businesses with detailed information from partners data
-  const getBusinesses = () => {
-    if (!partnersData?.data?.data) return [];
-
-    return partnersData.data.data
-      .map((partner) => ({
-        id: partner.id,
-        partnerId: partner.partnerId,
-        name: partner.carBusinessName,
-        displayName: partner.carName,
-        type: partner.carBusinessType,
-        registration: partner.carRegNum,
-        phone: partner.carPhone,
-        email: partner.carEmail,
-        logo: partner.businessLogo,
-        tagline: partner.carTagline,
-        description: partner.carRentalDescription,
-        rentalType: partner.carRentalType,
-        regDate: partner.carRegDate,
-        bookingCondition: partner.carBookingCondition,
-        cancelationPolicy: partner.carCancelationPolicy,
-        hasDocuments: partner.carDocs && partner.carDocs.length > 0,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  };
+  const carRentals = partnerData?.data?.data || [];
 
   const {
-    control,
+    register,
     handleSubmit,
     formState: { errors },
-  } = useForm({
-    defaultValues: {
-      businessName: "",
-      carModel: "",
-      carType: "",
-      carSeats: "",
-      carOilType: "",
-      carEngineType: "",
-      carTransmission: "",
-      carPower: "",
-      carDrivetrain: "",
-      carMileage: "",
-      carCapacity: "",
-      carColor: "",
-      fuelType: "",
-      gearType: "",
-      carRating: "0",
-      carPriceDay: "",
-      category: "",
-      discount: 0,
-      carAddress: "",
-      carPostalCode: "",
-      carDistrict: "",
-      carCity: "",
-      carCountry: "",
-      carDescription: "",
-      carServicesOffered: [],
-      currency: "USD",
-    },
-  });
+    setValue,
+  } = useForm();
 
-  // --- Generate Currency Options ---
-  const generateCurrencyOptions = () => {
-    const unique = new Set();
-    const list = [];
+  // Load car rentals on mount
+  useEffect(() => {
+    getCarRentals({ page: 1, limit: 100 });
+  }, [getCarRentals]);
 
-    Object.values(currencyByCountry).forEach(({ code, symbol }) => {
-      if (!unique.has(code)) {
-        unique.add(code);
-        list.push({ value: code, label: `${code} - ${symbol}` });
-      }
-    });
+  // Auto-select first rental when data loads
+  useEffect(() => {
+    if (carRentals?.length > 0 && !selectedRental) {
+      setSelectedRental(carRentals[0].id);
+    }
+  }, [carRentals, selectedRental]);
 
-    return list.sort((a, b) => a.value.localeCompare(b.value));
+  const handleImageChange = (e) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files).map((file) => file);
+      setCarImages(filesArray);
+    }
   };
-
-  // --- Handle Image Upload ---
-  const handleImageUpload = ({ fileList }) => {
-    const imgs = fileList.map((file) => ({
-      file: file.originFileObj,
-      preview: URL.createObjectURL(file.originFileObj),
-    }));
-    setCarImages(imgs);
-  };
-
-  // --- FINAL SUBMIT ---
   const onSubmit = async (data) => {
+    if (!selectedRental) {
+      toast.error("Please select a car rental");
+      return;
+    }
+
     if (carImages.length === 0) {
-      return Swal.fire("No Images", "Upload at least one image", "warning");
+      toast.error("Please upload at least one image");
+      return;
     }
-
-    // Find the selected business ID
-    const selectedBusiness = getBusinesses().find(
-      (business) => business.name === data.businessName
-    );
-    if (!selectedBusiness) {
-      return Swal.fire("Error", "Please select a valid business", "error");
-    }
-
-    console.log("Selected Business:", selectedBusiness);
-    console.log("Business ID:", selectedBusiness.id);
-    console.log("Partner ID:", selectedBusiness.partnerId);
-
-    // Try using partnerId instead of id for the API call
-    const businessIdToUse = selectedBusiness.partnerId;
-    console.log("Using Partner ID (not business ID):", businessIdToUse);
-
-    const formData = new FormData();
-
-    // --- EXACT API SCHEMA MAPPING ---
-    const payload = {
-      businessName: data.businessName,
-      carAddress: data.carAddress,
-      carPostalCode: data.carPostalCode,
-      carDistrict: data.carDistrict,
-      carCity: data.carCity,
-      carCountry: data.carCountry,
-      carDescription: data.carDescription,
-
-      carType: data.carType,
-      carSeats: data.carSeats,
-      carOilType: data.carOilType,
-      carEngineType: data.carEngineType,
-      carTransmission: data.carTransmission,
-      carPower: data.carPower,
-      carDrivetrain: data.carDrivetrain,
-      carMileage: data.carMileage,
-
-      carModel: data.carModel,
-      carCapacity: data.carCapacity,
-      carColor: data.carColor,
-      fuelType: data.fuelType,
-      gearType: data.gearType,
-      carRating: data.carRating || "0",
-
-      carPriceDay: parseFloat(data.carPriceDay),
-      category: data.category || "",
-      discount: parseFloat(data.discount || 0),
-
-      isBooked: "AVAILABLE",
-      currency: data.currency,
-    };
-
-    // Append normal fields
-    Object.entries(payload).forEach(([key, value]) => {
-      formData.append(key, value);
-    });
-
-    // Append services
-    if (Array.isArray(data.carServicesOffered)) {
-      data.carServicesOffered.forEach((service) => {
-        formData.append("carServicesOffered", service);
-      });
-    }
-
-    // Append up to 5 images
-    carImages.slice(0, 5).forEach((img) => {
-      formData.append("carImages", img.file);
-    });
 
     try {
-      Swal.fire({
-        title: "Creating Car...",
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading(),
+      // Create form data
+      const formData = new FormData();
+
+      // Prepare car data
+      const carData = {
+        carAddress: data.carAddress,
+        carPostalCode: data.carPostalCode,
+        carDistrict: data.carDistrict,
+        carCity: data.carCity,
+        carCountry: data.carCountry,
+        carDescription: data.carDescription,
+        carServicesOffered: Array.isArray(data.carServicesOffered)
+          ? data.carServicesOffered
+          : [data.carServicesOffered].filter(Boolean),
+        carType: data.carType,
+        carSeats: data.carSeats,
+        carOilType: data.carOilType,
+        carEngineType: data.carEngineType,
+        carTransmission: data.carTransmission,
+        carPower: data.carPower,
+        carDrivetrain: data.carDrivetrain,
+        carMileage: data.carMileage,
+        carModel: data.carModel,
+        carCapacity: data.carCapacity,
+        carColor: data.carColor,
+        currency: data.currency,
+        fuelType: data.fuelType,
+        gearType: data.gearType,
+        carRating: data.carRating,
+        carPriceDay: Number(data.carPriceDay) || 0,
+        category: data.category,
+        discount: Number(data.discount) || 0,
+        vat: Number(data.vat) || 0,
+        carReviewCount: Number(data.carReviewCount) || 0,
+        carBookingAbleDays: Array.isArray(data.carBookingAbleDays)
+          ? data.carBookingAbleDays
+          : [data.carBookingAbleDays].filter(Boolean),
+      };
+
+      // Append car data as JSON string
+      formData.append("data", JSON.stringify(carData));
+
+      // Append images
+      carImages.forEach((image) => {
+        formData.append("carImages", image);
       });
 
-      const result = await createCar({
+      // Send the request
+      await createCar({
         formData,
-        businessId: businessIdToUse,
+        businessId: selectedRental,
       }).unwrap();
-      console.log("Create Car Result:", result);
+      await Swal.fire({
+        icon: "success",
+        title: "Success!",
+        text: "Car created successfully!",
+        confirmButtonText: "OK",
+      });
 
-      Swal.close();
-      Swal.fire("Success", "Car Added Successfully", "success");
-
-      navigate("/dashboard/car-management");
-    } catch (err) {
-      console.error("Create Car Error:", err);
-      Swal.close();
-      Swal.fire("Error", err.data?.message || "Failed to Add Car", "error");
+    } catch (error) {
+      console.error("Error creating car:", error);
+      await Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: error.data?.message || "Failed to create car",
+      });
     }
   };
 
   return (
-    <div className="container mx-auto p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8 text-center">
-          <Title level={2} className="flex items-center justify-center gap-3">
-            <CarOutlined className="text-blue-600" />
-            Add New Car
-          </Title>
-          <Text type="secondary" className="text-lg">
-            Complete the form below to add a new car to your fleet.
-          </Text>
+    <div className="p-6 max-w-6xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">Add New Car</h1>
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {/* Car Rental Selection */}
+        <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <h2 className="text-lg font-semibold mb-4">Car Rental Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Select Car Rental *
+              </label>
+              <select
+                value={selectedRental}
+                onChange={(e) => setSelectedRental(e.target.value)}
+                className="w-full p-2 border rounded"
+                disabled={isPartnerLoading}
+                required
+              >
+                {isPartnerLoading ? (
+                  <option>Loading rentals...</option>
+                ) : carRentals.length > 0 ? (
+                  carRentals.map((rental) => (
+                    <option key={rental.id} value={rental.id}>
+                      {rental?.carBusinessName}
+                    </option>
+                  ))
+                ) : (
+                  <option>No car rentals available</option>
+                )}
+              </select>
+            </div>
+          </div>
         </div>
 
-        <Form layout="vertical" onFinish={handleSubmit(onSubmit)}>
-          {/* =======================
-              BASIC DETAILS
-          ======================= */}
-          <Card
-            className="mb-6"
-            title={
-              <div className="flex items-center gap-2">
-                <CarOutlined className="text-blue-600" />
-                Basic Details
-              </div>
-            }
-          >
-            <div></div>
-            <Row gutter={[16, 16]}>
-              {/* Business Name */}
-              <Col xs={24} md={12}>
-                <Form.Item label="Business Name" required>
-                  <Controller
-                    name="businessName"
-                    control={control}
-                    rules={{ required: true }}
-                    render={({ field }) => (
-                      <Select
-                        {...field}
-                        size="large"
-                        placeholder="Select business"
-                        loading={partnersLoading}
-                        showSearch
-                        filterOption={(input, option) =>
-                          option.children
-                            ?.toLowerCase()
-                            ?.indexOf(input.toLowerCase()) >= 0
-                        }
-                      >
-                        {getBusinesses().map((business) => (
-                          <Option key={business.id} value={business.name}>
-                            {business.name}
-                          </Option>
-                        ))}
-                      </Select>
-                    )}
-                  />
-                </Form.Item>
-              </Col>
-
-              {/* Car Model */}
-              <Col xs={24} md={12}>
-                <Form.Item label="Car Model" required>
-                  <Controller
-                    name="carModel"
-                    control={control}
-                    rules={{ required: true }}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        size="large"
-                        placeholder="Toyota Camry 2023"
-                      />
-                    )}
-                  />
-                </Form.Item>
-              </Col>
-
-              {/* Car Type */}
-              <Col xs={24} md={12}>
-                <Form.Item label="Car Type" required>
-                  <Controller
-                    name="carType"
-                    control={control}
-                    rules={{ required: true }}
-                    render={({ field }) => (
-                      <Select {...field} size="large" placeholder="Select type">
-                        <Option value="SUV">SUV</Option>
-                        <Option value="Sedan">Sedan</Option>
-                        <Option value="Mini">Mini</Option>
-                        <Option value="Van">Van</Option>
-                        <Option value="Coupe">Coupe</Option>
-                      </Select>
-                    )}
-                  />
-                </Form.Item>
-              </Col>
-
-              {/* Seats */}
-              <Col xs={24} md={12}>
-                <Form.Item label="Seats" required>
-                  <Controller
-                    name="carSeats"
-                    control={control}
-                    rules={{ required: true }}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        size="large"
-                        placeholder="e.g., 4 or 7"
-                      />
-                    )}
-                  />
-                </Form.Item>
-              </Col>
-
-              {/* Luggage */}
-              <Col xs={24} md={12}>
-                <Form.Item label="Luggage Capacity">
-                  <Controller
-                    name="carCapacity"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        size="large"
-                        placeholder="2 large bags"
-                      />
-                    )}
-                  />
-                </Form.Item>
-              </Col>
-
-              {/* Color */}
-              <Col xs={24} md={12}>
-                <Form.Item label="Color">
-                  <Controller
-                    name="carColor"
-                    control={control}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        size="large"
-                        placeholder="Black, White"
-                      />
-                    )}
-                  />
-                </Form.Item>
-              </Col>
-
-              {/* Fuel Type */}
-              <Col xs={24} md={12}>
-                <Form.Item label="Fuel Type">
-                  <Controller
-                    name="fuelType"
-                    control={control}
-                    render={({ field }) => (
-                      <Select {...field} size="large">
-                        <Option value="Petrol">Petrol</Option>
-                        <Option value="Diesel">Diesel</Option>
-                        <Option value="Hybrid">Hybrid</Option>
-                        <Option value="EV">Electric</Option>
-                      </Select>
-                    )}
-                  />
-                </Form.Item>
-              </Col>
-
-              {/* Gear Type */}
-              <Col xs={24} md={12}>
-                <Form.Item label="Gear Type">
-                  <Controller
-                    name="gearType"
-                    control={control}
-                    render={({ field }) => (
-                      <Select {...field} size="large">
-                        <Option value="Auto">Automatic</Option>
-                        <Option value="Manual">Manual</Option>
-                      </Select>
-                    )}
-                  />
-                </Form.Item>
-              </Col>
-
-              {/* Price */}
-              <Col xs={24} md={12}>
-                <Form.Item label="Price Per Day" required>
-                  <Controller
-                    name="carPriceDay"
-                    control={control}
-                    rules={{ required: true }}
-                    render={({ field }) => (
-                      <Input
-                        {...field}
-                        type="number"
-                        size="large"
-                        placeholder="50"
-                      />
-                    )}
-                  />
-                </Form.Item>
-              </Col>
-
-              {/* Currency */}
-              <Col xs={24} md={12}>
-                <Form.Item label="Currency">
-                  <Controller
-                    name="currency"
-                    control={control}
-                    render={({ field }) => (
-                      <Select {...field} size="large" showSearch>
-                        {generateCurrencyOptions().map((cur) => (
-                          <Option key={cur.value} value={cur.value}>
-                            {cur.label}
-                          </Option>
-                        ))}
-                      </Select>
-                    )}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-          </Card>
-
-          {/* ===========================
-              ENGINE DETAILS
-          =========================== */}
-          <Card
-            className="mb-6"
-            title={
-              <div className="flex items-center gap-2">
-                <SettingOutlined className="text-blue-600" />
-                Engine & Performance
-              </div>
-            }
-          >
-            <Row gutter={[16, 16]}>
-              {[
-                {
-                  name: "carOilType",
-                  label: "Oil Type",
-                  placeholder: "Synthetic 5W-30",
-                },
-                {
-                  name: "carEngineType",
-                  label: "Engine Type",
-                  placeholder: "V6, Inline-4",
-                },
-                {
-                  name: "carPower",
-                  label: "Power (HP)",
-                  placeholder: "200 HP",
-                },
-                {
-                  name: "carMileage",
-                  label: "Mileage",
-                  placeholder: "15 km/l",
-                },
-              ].map((f) => (
-                <Col xs={24} md={12} key={f.name}>
-                  <Form.Item label={f.label}>
-                    <Controller
-                      name={f.name}
-                      control={control}
-                      render={({ field }) => (
-                        <Input
-                          {...field}
-                          size="large"
-                          placeholder={f.placeholder}
-                        />
-                      )}
-                    />
-                  </Form.Item>
-                </Col>
-              ))}
-
-              {/* Transmission */}
-              <Col xs={24} md={12}>
-                <Form.Item label="Transmission">
-                  <Controller
-                    name="carTransmission"
-                    control={control}
-                    render={({ field }) => (
-                      <Select {...field} size="large">
-                        <Option value="Auto">Automatic</Option>
-                        <Option value="Manual">Manual</Option>
-                      </Select>
-                    )}
-                  />
-                </Form.Item>
-              </Col>
-
-              {/* Drivetrain */}
-              <Col xs={24} md={12}>
-                <Form.Item label="Drivetrain">
-                  <Controller
-                    name="carDrivetrain"
-                    control={control}
-                    render={({ field }) => (
-                      <Select {...field} size="large">
-                        <Option value="AWD">AWD</Option>
-                        <Option value="RWD">RWD</Option>
-                        <Option value="FWD">FWD</Option>
-                        <Option value="4WD">4WD</Option>
-                      </Select>
-                    )}
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
-          </Card>
-
-          {/* ===========================
-              LOCATION
-          =========================== */}
-          <Card
-            className="mb-6"
-            title={
-              <div className="flex items-center gap-2">
-                <EnvironmentOutlined className="text-blue-600" />
-                Car Location
-              </div>
-            }
-          >
-            <Row gutter={[16, 16]}>
-              {[
-                { name: "carAddress", label: "Address", required: true },
-                { name: "carPostalCode", label: "Postal Code", required: true },
-                { name: "carDistrict", label: "District" },
-                { name: "carCity", label: "City", required: true },
-                { name: "carCountry", label: "Country", required: true },
-              ].map((f) => (
-                <Col
-                  xs={24}
-                  md={f.name === "carAddress" ? 24 : 12}
-                  key={f.name}
-                >
-                  <Form.Item label={f.label} required={f.required}>
-                    <Controller
-                      name={f.name}
-                      control={control}
-                      rules={f.required ? { required: true } : {}}
-                      render={({ field }) => (
-                        <Input {...field} size="large" placeholder={f.label} />
-                      )}
-                    />
-                  </Form.Item>
-                </Col>
-              ))}
-            </Row>
-          </Card>
-
-          {/* ===========================
-              DESCRIPTION
-          =========================== */}
-          <Card
-            className="mb-6"
-            title={
-              <div className="flex items-center gap-2">
-                <FileTextOutlined className="text-blue-600" />
-                Description
-              </div>
-            }
-          >
-            <Form.Item label="Car Description" required>
-              <Controller
-                name="carDescription"
-                control={control}
-                rules={{ required: true }}
-                render={({ field }) => (
-                  <TextArea
-                    {...field}
-                    rows={4}
-                    size="large"
-                    placeholder="Describe the car..."
-                  />
-                )}
+        {/* Basic Information */}
+        <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <h2 className="text-lg font-semibold mb-4">Basic Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Car Model *
+              </label>
+              <input
+                type="text"
+                {...register("carModel", { required: "Car model is required" })}
+                className="w-full p-2 border rounded"
+                placeholder="Toyota Corolla 2022"
               />
-            </Form.Item>
-          </Card>
-
-          {/* ===========================
-              SERVICES
-          =========================== */}
-          <Card
-            className="mb-6"
-            title={
-              <div className="flex items-center gap-2">
-                <ToolOutlined className="text-blue-600" />
-                Services & Features
-              </div>
-            }
-          >
-            <Controller
-              name="carServicesOffered"
-              control={control}
-              render={({ field }) => (
-                <Checkbox.Group
-                  {...field}
-                  options={[
-                    "AC",
-                    "Heater",
-                    "GPS",
-                    "Bluetooth",
-                    "Child Seat",
-                    "USB Charger",
-                    "Music System",
-                    "WiFi",
-                  ]}
-                />
-              )}
-            />
-          </Card>
-
-          {/* ===========================
-              IMAGES
-          =========================== */}
-          <Card
-            className="mb-6"
-            title={
-              <div className="flex items-center gap-2">
-                <UploadOutlined className="text-blue-600" />
-                Car Images
-              </div>
-            }
-          >
-            <Upload
-              listType="picture-card"
-              multiple
-              fileList={carImages.map((img, i) => ({
-                uid: i,
-                name: `Image ${i + 1}`,
-                status: "done",
-                url: img.preview,
-              }))}
-              beforeUpload={() => false}
-              onChange={handleImageUpload}
-              accept="image/*"
-            >
-              {carImages.length >= 5 ? null : (
-                <div>
-                  <PlusOutlined />
-                  <div style={{ marginTop: 8 }}>Upload</div>
-                </div>
-              )}
-            </Upload>
-          </Card>
-
-          {/* ===========================
-              SUBMIT
-          =========================== */}
-          <div className="flex justify-end gap-4 mb-10">
-            <Button size="large" onClick={() => navigate(-1)}>
-              Cancel
-            </Button>
-
-            <Button
-              type="primary"
-              size="large"
-              htmlType="submit"
-              loading={isLoading}
-            >
-              {isLoading ? "Creating..." : "Create Car"}
-            </Button>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Car Type *
+              </label>
+              <select
+                {...register("carType", { required: "Car type is required" })}
+                className="w-full p-2 border rounded"
+              >
+                <option value="Sedan">Sedan</option>
+                <option value="SUV">SUV</option>
+                <option value="Hatchback">Hatchback</option>
+                <option value="Luxury">Luxury</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Seats *
+              </label>
+              <input
+                type="number"
+                {...register("carSeats", {
+                  required: "Number of seats is required",
+                })}
+                className="w-full p-2 border rounded"
+                placeholder="5"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Price
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                {...register("carPriceDay", { required: "Price is required" })}
+                className="w-full p-2 border rounded"
+                placeholder="100"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Currency *
+              </label>
+              <select
+                {...register("currency", { required: "Currency is required" })}
+                className="w-full p-2 border rounded"
+                defaultValue="BDT"
+              >
+                <option value="BDT">BDT</option>
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+                <option value="INR">INR</option>
+                <option value="AED">AED</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Color *
+              </label>
+              <input
+                type="text"
+                {...register("carColor", { required: "Color is required" })}
+                className="w-full p-2 border rounded"
+                placeholder="Black"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Category *
+              </label>
+              <input
+                type="text"
+                {...register("category", { required: "Category is required" })}
+                className="w-full p-2 border rounded"
+                placeholder="Premium"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Discount (%)
+              </label>
+              <input
+                type="number"
+                {...register("discount")}
+                className="w-full p-2 border rounded"
+                placeholder="10"
+                defaultValue={0}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Rating
+              </label>
+              <input
+                type="text"
+                {...register("carRating")}
+                className="w-full p-2 border rounded"
+                placeholder="4.7"
+                defaultValue="4.7"
+              />
+            </div>
           </div>
-        </Form>
-      </div>
+        </div>
+
+        {/* Engine & Performance */}
+        <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <h2 className="text-lg font-semibold mb-4">Engine & Performance</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Fuel Type *
+              </label>
+              <select
+                {...register("fuelType", { required: "Fuel type is required" })}
+                className="w-full p-2 border rounded"
+              >
+                <option value="Petrol">Petrol</option>
+                <option value="Diesel">Diesel</option>
+                <option value="Hybrid">Hybrid</option>
+                <option value="Electric">Electric</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Gear Type *
+              </label>
+              <select
+                {...register("gearType", { required: "Gear type is required" })}
+                className="w-full p-2 border rounded"
+              >
+                <option value="Automatic">Automatic</option>
+                <option value="Manual">Manual</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Transmission *
+              </label>
+              <select
+                {...register("carTransmission", {
+                  required: "Transmission is required",
+                })}
+                className="w-full p-2 border rounded"
+              >
+                <option value="Automatic">Automatic</option>
+                <option value="Manual">Manual</option>
+                <option value="Semi-Automatic">Semi-Automatic</option>
+                <option value="CVT">CVT</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Engine Type
+              </label>
+              <input
+                type="text"
+                {...register("carEngineType")}
+                className="w-full p-2 border rounded"
+                placeholder="V6"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Power
+              </label>
+              <input
+                type="text"
+                {...register("carPower")}
+                className="w-full p-2 border rounded"
+                placeholder="220 HP"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Drivetrain
+              </label>
+              <select
+                {...register("carDrivetrain")}
+                className="w-full p-2 border rounded"
+              >
+                <option value="FWD">FWD</option>
+                <option value="RWD">RWD</option>
+                <option value="AWD">AWD</option>
+                <option value="4WD">4WD</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Mileage
+              </label>
+              <input
+                type="text"
+                {...register("carMileage")}
+                className="w-full p-2 border rounded"
+                placeholder="15 km/l"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Oil Type
+              </label>
+              <input
+                type="text"
+                {...register("carOilType")}
+                className="w-full p-2 border rounded"
+                placeholder="Synthetic 5W-30"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Capacity
+              </label>
+              <input
+                type="text"
+                {...register("carCapacity")}
+                className="w-full p-2 border rounded"
+                placeholder="50L"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Location Information */}
+        <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <h2 className="text-lg font-semibold mb-4">Location Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Address *
+              </label>
+              <input
+                type="text"
+                {...register("carAddress", { required: "Address is required" })}
+                className="w-full p-2 border rounded"
+                placeholder="123 Main Street"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                City *
+              </label>
+              <input
+                type="text"
+                {...register("carCity", { required: "City is required" })}
+                className="w-full p-2 border rounded"
+                placeholder="Dhaka"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                District
+              </label>
+              <input
+                type="text"
+                {...register("carDistrict")}
+                className="w-full p-2 border rounded"
+                placeholder="Dhaka"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Postal Code
+              </label>
+              <input
+                type="text"
+                {...register("carPostalCode")}
+                className="w-full p-2 border rounded"
+                placeholder="1000"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Country *
+              </label>
+              <input
+                type="text"
+                {...register("carCountry", { required: "Country is required" })}
+                className="w-full p-2 border rounded"
+                placeholder="Bangladesh"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Additional Information */}
+        <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <h2 className="text-lg font-semibold mb-4">Additional Information</h2>
+          <div className="grid grid-cols-1 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Description *
+              </label>
+              <textarea
+                {...register("carDescription", {
+                  required: "Description is required",
+                })}
+                className="w-full p-2 border rounded"
+                rows={4}
+                placeholder="A luxury sedan with premium features."
+              ></textarea>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Services Offered
+              </label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {[
+                  "AC",
+                  "WiFi",
+                  "GPS",
+                  "Child Seat",
+                  "Bluetooth",
+                  "Sunroof",
+                  "USB Charger",
+                  "Heated Seats",
+                ].map((service) => (
+                  <div key={service} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id={service}
+                      value={service}
+                      {...register("carServicesOffered")}
+                      className="h-4 w-4 text-blue-600 rounded"
+                    />
+                    <label
+                      htmlFor={service}
+                      className="ml-2 text-sm text-gray-700"
+                    >
+                      {service}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Booking Available Days
+              </label>
+              <div className="grid grid-cols-2 md:grid-cols-7 gap-2">
+                {[
+                  "Sunday",
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday",
+                ].map((day) => (
+                  <div key={day} className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id={day}
+                      value={day}
+                      {...register("carBookingAbleDays")}
+                      className="h-4 w-4 text-blue-600 rounded"
+                      defaultChecked={["Saturday", "Sunday", "Monday"].includes(
+                        day
+                      )}
+                    />
+                    <label htmlFor={day} className="ml-2 text-sm text-gray-700">
+                      {day}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Car Images */}
+        <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <h2 className="text-lg font-semibold mb-4">Car Images *</h2>
+          <input
+            type="file"
+            multiple
+            onChange={handleImageChange}
+            accept="image/*"
+            className="w-full p-2 border rounded"
+            required
+          />
+          <p className="text-sm text-gray-500 mt-1">
+            Upload at least one image of the car
+          </p>
+        </div>
+
+        {/* Submit Button */}
+        <div className="flex justify-end space-x-4">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isCreating}
+            className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:bg-blue-400"
+          >
+            {isCreating ? "Creating..." : "Create Car"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
