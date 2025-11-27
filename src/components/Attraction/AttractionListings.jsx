@@ -2,8 +2,10 @@ import React, { useState } from "react";
 import { Table, ConfigProvider, Modal, Button, Tag } from "antd";
 import { Eye } from "lucide-react";
 import { useGetAllActiveAttractionListingsQuery } from "../../redux/api/attraction/attractionApi";
+import { useNavigate } from "react-router-dom";
 
 export default function AttractionListings() {
+  const navigate = useNavigate();
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedAttraction, setSelectedAttraction] = useState(null);
 
@@ -135,14 +137,22 @@ export default function AttractionListings() {
   return (
     <div className="p-5">
       <div className="mb-5 flex justify-end items-center">
-        <div className="space-y-2 w-[400px]">
+       <div className="space-y-2 flex justify-center gap-2 w-[400px]">
           <input
             type="text"
-            placeholder="Search attractions by type, category or location"
+            placeholder="Search attraction by name"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full p-3 border border-gray-200 rounded-lg placeholder:text-gray-400 focus:outline-none focus:border-[#0064D2]"
           />
+
+          <Button
+            type="primary"
+            onClick={() => navigate("/dashboard/add-attraction")}
+            className="bg-blue-600 text-white !py-6 hover:bg-blue-700 p-3"
+          >
+            Add Attraction
+          </Button>
         </div>
       </div>
       <ConfigProvider

@@ -112,6 +112,17 @@ export const carApi = baseApi.injectEndpoints({
         body: credentials,
       }),
     }),
+    getCarBusinessPartner: builder.mutation({
+      query: ({ limit, page }) => ({
+        url: `/car-rentals/partner`,
+        method: "GET",
+        prepareHeaders: (headers) => {
+          headers.set("Accept", "application/json");
+          return headers;
+        },
+      }),
+      invalidatesTags: ["car"],
+    }),
   }),
 });
 
@@ -132,4 +143,5 @@ export const {
   useCreateCarPaystackSessionMutation,
   useCreateCarStripeSessionMutation,
   useCreateCarMutation,
+  useGetCarBusinessPartnerMutation,
 } = carApi;
