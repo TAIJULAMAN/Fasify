@@ -4,6 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { Upload, X } from "lucide-react";
 import Swal from "sweetalert2";
 import { useAddHotelRoomMutation, useGetHotelBusinessPartnerMutation } from "../../redux/api/hotel/hotelApi";
+import { countries } from "../../components/country";
+
+
 
 export default function CreateHotelRoom() {
   const [loading, setLoading] = useState(false);
@@ -15,31 +18,32 @@ export default function CreateHotelRoom() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm({
     defaultValues: {
-      hotelRoomType: "Deluxe Suite",
+      hotelRoomType: "",
       hotelAC: true,
       hotelParking: true,
       hotelWifi: true,
       hotelBreakfast: true,
       hotelPool: false,
-      hotelRating: "4.5",
+      hotelRating: "",
       hotelSmoking: false,
       hotelTv: true,
       hotelWashing: true,
       hotelRoomDescription:
-        "A spacious deluxe suite with ocean view and modern amenities.",
-      hotelAddress: "123 Beach Avenue",
-      hotelCity: "Miami",
-      hotelPostalCode: "33101",
-      hotelDistrict: "Downtown",
-      hotelCountry: "USA",
-      hotelRoomCapacity: "3 Adults",
+        "",
+      hotelAddress: "",
+      hotelCity: "",
+      hotelPostalCode: "",
+      hotelDistrict: "",
+      hotelCountry: "",
+      hotelRoomCapacity: "",
       hotelNumberOfRooms: 5,
       hotelNumAdults: 2,
       hotelNumChildren: 1,
-      hotelAccommodationType: "Suite",
+      hotelAccommodationType: "",
       hotelKitchen: true,
       hotelRestaurant: true,
       hotelGym: true,
@@ -55,8 +59,8 @@ export default function CreateHotelRoom() {
       hotelLocationFeatureIsland: false,
       hotelCoffeeBar: true,
       hotelRoomPriceNight: 150,
-      category: "Luxury",
-      discount: 10.5,
+      category: "",
+      discount: 10,
       hotelReviewCount: 12,
     },
   });
@@ -178,6 +182,46 @@ export default function CreateHotelRoom() {
       setLoading(false);
     }
   };
+
+   // Auto-detect providers
+    const providers = [
+      {
+        name: "ipapi.co",
+        url: "https://ipapi.co/json/",
+        parse: (data) => ({ iso: data.country, raw: data }),
+      },
+      {
+        name: "extreme-ip-lookup",
+        url: "https://extreme-ip-lookup.com/json/",
+        parse: (data) => ({ iso: data.countryCode, raw: data }),
+      },
+      {
+        name: "ipinfo.io",
+        url: "https://ipinfo.io/json",
+        parse: (data) => ({ iso: data.country, raw: data }),
+      },
+    ];
+  
+    // Auto detect country
+    useEffect(() => {
+      const detectCountry = async () => {
+        for (const provider of providers) {
+          try {
+            const res = await fetch(provider.url);
+            if (!res.ok) continue;
+  
+            const json = await res.json();
+            const { iso } = provider.parse(json);
+  
+            if (iso) {
+              setValue("hotelCountry", iso);
+              break;
+            }
+          } catch { }
+        }
+      };
+      detectCountry();
+    }, []);
 
   return (
     <div className="container mx-auto p-4">
@@ -385,13 +429,19 @@ export default function CreateHotelRoom() {
               <label className="block text-sm font-medium text-gray-700">
                 Country
               </label>
-              <input
-                type="text"
+              <select
                 {...register("hotelCountry", {
                   required: "Country is required",
                 })}
                 className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-800 shadow-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none"
-              />
+              >
+                <option value="">Select your country</option>
+                {countries.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
               {errors.hotelCountry && (
                 <p className="mt-1 text-sm text-red-600">
                   {errors.hotelCountry.message}
