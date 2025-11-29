@@ -24,6 +24,7 @@ export default function Checkout() {
   const user = useSelector((state) => state?.auth?.user);
 
   const bookingData = location.state?.bookingData || {};
+  console.log("ffffffffffffffffffffffffffff", bookingData);
   const guestInfo = location.state?.guestInfo || {};
 
   const [isProcessing, setIsProcessing] = useState(false);
@@ -79,28 +80,67 @@ export default function Checkout() {
     detectCurrency();
   }, [baseCurrency]);
 
-  // ---------- SAFE PRICE CALCULATIONS ----------
+  // ---------- PRICE CALCULATIONS ----------
   const nights = Number(bookingData.nights || 1);
   const rooms = Number(bookingData.rooms || 1);
 
-  const baseSubtotal = Number(basePrice || 0);
-  const convertedRoomPrice = baseSubtotal * conversionRate;
-
-  const subtotal = convertedRoomPrice * nights * rooms;
-
+  // Use the total from BookingForm if available, otherwise calculate
+  const bookingFormTotal = bookingData?.total || 0;
+  let totalAmount;
+  let subtotal;
+  let vatAmount;
   const vatRate = Number(bookingData?.vat) || 5;
-  const vatAmount = subtotal * (vatRate / 100);
 
-  let safeTotal = subtotal + vatAmount;
-
-  if (isNaN(safeTotal) || !isFinite(safeTotal)) {
-    safeTotal = subtotal + vatAmount;
+  if (bookingFormTotal > 0) {
+    // Use the total from BookingForm (this is subtotal without VAT)
+    subtotal = bookingFormTotal;
+    // Add VAT to get total
+    totalAmount = subtotal + (subtotal * vatRate) / 100;
+    vatAmount = totalAmount - subtotal;
+    console.log(
+      "Using subtotal from BookingForm:",
+      bookingFormTotal,
+      "Subtotal:",
+      subtotal,
+      "Total with VAT:",
+      totalAmount,
+      "BasePrice:",
+      basePrice,
+      "Nights:",
+      nights,
+      "Rooms:",
+      rooms
+    );
+  } else {
+    // Fallback calculation
+    const baseSubtotal = Number(basePrice || 0);
+    const convertedRoomPrice = baseSubtotal * conversionRate;
+    subtotal = convertedRoomPrice * nights * rooms;
+    vatAmount = subtotal * (vatRate / 100);
+    totalAmount = subtotal + vatAmount;
+    console.log(
+      "Calculated total:",
+      totalAmount,
+      "Subtotal:",
+      subtotal,
+      "BasePrice:",
+      basePrice,
+      "ConversionRate:",
+      conversionRate
+    );
   }
 
-  const totalAmount = safeTotal;
-  const convertedDisplayPrice = convertedRoomPrice.toFixed(2);
+  // Format currency for display
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: userCurrency || "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
 
-  // ---------- USER INPUT ----------
+  // Get user info for guest details
   const [updatedUser, setUpdatedUser] = useState({
     name: guestInfo.fullName || user?.name || bookingData?.user?.fullName || "",
     email: guestInfo.email || user?.email || bookingData?.user?.email || "",
@@ -138,8 +178,8 @@ export default function Checkout() {
           bookingData.bookedFromDate || bookingData.checkIn
         ),
         bookedToDate: toYMD(bookingData.bookedToDate || bookingData.checkOut),
-        totalPrice: Number(totalAmount || 0),
-        convertedPrice: Number(subtotal || 0),
+        totalPrice: totalAmount,
+        convertedPrice: subtotal / nights / rooms,
         displayCurrency: userCurrency,
         specialRequest: bookingData.specialRequest || null,
         bookingStatus: bookingData.bookingStatus || "PENDING",
@@ -154,6 +194,7 @@ export default function Checkout() {
         bookingId: bookingData.roomId,
         data: payload,
       }).unwrap();
+      console.log("rrrrrrrrrrrrrrrrrrrr", res);
 
       const createdBookingId =
         res.data?._id || res.data?.id || res._id || res.id;
@@ -348,8 +389,8 @@ export default function Checkout() {
               <div className="text-sm space-y-2">
                 <div className="flex justify-between">
                   <span>
-                    {userCurrency} {convertedDisplayPrice} × {nights} nights ×{" "}
-                    {rooms}
+                    {userCurrency} {(subtotal / nights / rooms).toFixed(2)} ×{" "}
+                    {nights} nights × {rooms}
                   </span>
                   <span>
                     {userCurrency} {subtotal.toFixed(2)}
@@ -357,9 +398,9 @@ export default function Checkout() {
                 </div>
 
                 <div className="flex justify-between">
-                  <span>VAT ({vatRate}%)</span>
+                  <span>VAT (5%)</span>
                   <span>
-                    {userCurrency} {vatAmount.toFixed(2)}
+                    {userCurrency} {(totalAmount - subtotal).toFixed(2)}
                   </span>
                 </div>
 
