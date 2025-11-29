@@ -1,5 +1,5 @@
 import React from "react";
-import { Instagram, Facebook, Youtube } from "lucide-react";
+import { Instagram, Facebook, Youtube, Linkedin } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function Footer() {
@@ -103,6 +103,15 @@ export default function Footer() {
                 >
                   <Youtube className="w-6 h-6" />
                   Youtube
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://www.linkedin.com/company/fasify/?viewAsMember=true"
+                  className="flex items-center gap-2 text-[#090909]"
+                >
+                  <Linkedin className="w-6 h-6" />
+                  LinkDin
                 </a>
               </li>
             </ul>
