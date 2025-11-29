@@ -626,7 +626,7 @@ export default function BookingForm({ hotel }) {
             </Option>
           </Select>
         </div>
-
+<h1 className="text-bold text-xl">Select A Room</h1>
         <div className="space-y-2">
           {rooms.map((room) => (
             <div
