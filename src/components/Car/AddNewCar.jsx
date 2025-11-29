@@ -7,6 +7,7 @@ import {
   useGetCarBusinessPartnerMutation,
 } from "../../redux/api/car/carApi";
 import Swal from "sweetalert2";
+import { countries } from "../../components/country";
 
 export default function AddNewCar() {
   const navigate = useNavigate();
@@ -37,6 +38,46 @@ export default function AddNewCar() {
       setSelectedRental(carRentals[0].id);
     }
   }, [carRentals, selectedRental]);
+
+  // Auto-detect providers
+  const providers = [
+    {
+      name: "ipapi.co",
+      url: "https://ipapi.co/json/",
+      parse: (data) => ({ iso: data.country, raw: data }),
+    },
+    {
+      name: "extreme-ip-lookup",
+      url: "https://extreme-ip-lookup.com/json/",
+      parse: (data) => ({ iso: data.countryCode, raw: data }),
+    },
+    {
+      name: "ipinfo.io",
+      url: "https://ipinfo.io/json",
+      parse: (data) => ({ iso: data.country, raw: data }),
+    },
+  ];
+
+  // Auto detect country
+  useEffect(() => {
+    const detectCountry = async () => {
+      for (const provider of providers) {
+        try {
+          const res = await fetch(provider.url);
+          if (!res.ok) continue;
+
+          const json = await res.json();
+          const { iso } = provider.parse(json);
+
+          if (iso) {
+            setValue("carCountry", iso);
+            break;
+          }
+        } catch { }
+      }
+    };
+    detectCountry();
+  }, []);
 
   const handleImageChange = (e) => {
     if (e.target.files) {
@@ -450,12 +491,17 @@ export default function AddNewCar() {
               <label className="block text-sm font-medium text-gray-700">
                 Country *
               </label>
-              <input
-                type="text"
+              <select
                 {...register("carCountry", { required: "Country is required" })}
                 className="w-full p-2 border rounded"
-                placeholder="Bangladesh"
-              />
+              >
+                <option value="">Select your country</option>
+                {countries.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
