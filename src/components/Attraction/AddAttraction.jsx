@@ -75,7 +75,7 @@ const AddAttraction = () => {
     }
   }, [attractions]);
 
-  // Auto-detect providers
+  // Auto-detect country
   const providers = [
     {
       name: "ipapi.co",

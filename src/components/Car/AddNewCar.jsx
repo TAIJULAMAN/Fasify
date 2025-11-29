@@ -8,6 +8,7 @@ import {
 } from "../../redux/api/car/carApi";
 import Swal from "sweetalert2";
 import { countries } from "../../components/country";
+import { currencyByCountry } from "../curenci";
 
 export default function AddNewCar() {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ export default function AddNewCar() {
     handleSubmit,
     formState: { errors },
     setValue,
+    watch,
   } = useForm();
 
   // Load car rentals on mount
@@ -255,21 +257,22 @@ export default function AddNewCar() {
                 placeholder="100"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-700 mb-1">
                 Currency *
               </label>
               <select
-                {...register("currency", { required: "Currency is required" })}
-                className="w-full p-2 border rounded"
-                defaultValue="BDT"
+                value={watch("currency")}
+                onChange={(e) => setValue("currency", e.target.value, { shouldValidate: true })}
+                className="p-3 rounded-xl bg-gray-100 focus:ring-2 focus:ring-blue-400 outline-none"
               >
-                <option value="BDT">BDT</option>
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-                <option value="GBP">GBP</option>
-                <option value="INR">INR</option>
-                <option value="AED">AED</option>
+                {Array.from(new Set(Object.values(currencyByCountry).map((c) => c.code))).map(
+                  (code) => (
+                    <option key={code} value={code}>
+                      {code}
+                    </option>
+                  )
+                )}
               </select>
             </div>
             <div>

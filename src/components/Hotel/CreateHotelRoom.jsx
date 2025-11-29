@@ -3,8 +3,12 @@ import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { Upload, X } from "lucide-react";
 import Swal from "sweetalert2";
-import { useAddHotelRoomMutation, useGetHotelBusinessPartnerMutation } from "../../redux/api/hotel/hotelApi";
+import {
+  useAddHotelRoomMutation,
+  useGetHotelBusinessPartnerMutation,
+} from "../../redux/api/hotel/hotelApi";
 import { countries } from "../../components/country";
+import { currencyByCountry } from "../curenci";
 
 
 
@@ -19,6 +23,7 @@ export default function CreateHotelRoom() {
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors },
   } = useForm({
     defaultValues: {
@@ -32,8 +37,7 @@ export default function CreateHotelRoom() {
       hotelSmoking: false,
       hotelTv: true,
       hotelWashing: true,
-      hotelRoomDescription:
-        "",
+      hotelRoomDescription: "",
       hotelAddress: "",
       hotelCity: "",
       hotelPostalCode: "",
@@ -62,6 +66,7 @@ export default function CreateHotelRoom() {
       category: "",
       discount: 10,
       hotelReviewCount: 12,
+      currency: "",
     },
   });
   const [getPartner, { data: hotelData, isLoading: isPartnerLoading }] =
@@ -130,8 +135,7 @@ export default function CreateHotelRoom() {
         }
       });
 
-      // Ensure currency is sent as per API response
-      formData.append("currency", "INR");
+      // Currency will be included from form data; do not override here
 
       // Append images
       hotelImages.forEach((image) => {
@@ -183,45 +187,45 @@ export default function CreateHotelRoom() {
     }
   };
 
-   // Auto-detect providers
-    const providers = [
-      {
-        name: "ipapi.co",
-        url: "https://ipapi.co/json/",
-        parse: (data) => ({ iso: data.country, raw: data }),
-      },
-      {
-        name: "extreme-ip-lookup",
-        url: "https://extreme-ip-lookup.com/json/",
-        parse: (data) => ({ iso: data.countryCode, raw: data }),
-      },
-      {
-        name: "ipinfo.io",
-        url: "https://ipinfo.io/json",
-        parse: (data) => ({ iso: data.country, raw: data }),
-      },
-    ];
-  
-    // Auto detect country
-    useEffect(() => {
-      const detectCountry = async () => {
-        for (const provider of providers) {
-          try {
-            const res = await fetch(provider.url);
-            if (!res.ok) continue;
-  
-            const json = await res.json();
-            const { iso } = provider.parse(json);
-  
-            if (iso) {
-              setValue("hotelCountry", iso);
-              break;
-            }
-          } catch { }
-        }
-      };
-      detectCountry();
-    }, []);
+  // Auto-detect providers
+  const providers = [
+    {
+      name: "ipapi.co",
+      url: "https://ipapi.co/json/",
+      parse: (data) => ({ iso: data.country, raw: data }),
+    },
+    {
+      name: "extreme-ip-lookup",
+      url: "https://extreme-ip-lookup.com/json/",
+      parse: (data) => ({ iso: data.countryCode, raw: data }),
+    },
+    {
+      name: "ipinfo.io",
+      url: "https://ipinfo.io/json",
+      parse: (data) => ({ iso: data.country, raw: data }),
+    },
+  ];
+
+  // Auto detect country
+  useEffect(() => {
+    const detectCountry = async () => {
+      for (const provider of providers) {
+        try {
+          const res = await fetch(provider.url);
+          if (!res.ok) continue;
+
+          const json = await res.json();
+          const { iso } = provider.parse(json);
+
+          if (iso) {
+            setValue("hotelCountry", iso);
+            break;
+          }
+        } catch {}
+      }
+    };
+    detectCountry();
+  }, []);
 
   return (
     <div className="container mx-auto p-4">
@@ -245,7 +249,6 @@ export default function CreateHotelRoom() {
                 {hotels.map((h) => (
                   <option key={h.id} value={h.id}>
                     {h.hotelBusinessName}
-                    
                   </option>
                 ))}
               </select>
@@ -294,6 +297,23 @@ export default function CreateHotelRoom() {
                   {errors.hotelRoomPriceNight.message}
                 </p>
               )}
+            </div>
+
+            <div className="flex flex-col">
+              <label className="text-sm font-medium text-gray-700 mb-1">Currency</label>
+              <select
+                value={watch("currency")}
+                onChange={(e) => setValue("currency", e.target.value, { shouldValidate: true })}
+                className="p-3 rounded-xl bg-gray-100 focus:ring-2 focus:ring-blue-400 outline-none"
+              >
+                {Array.from(new Set(Object.values(currencyByCountry).map((c) => c.code))).map(
+                  (code) => (
+                    <option key={code} value={code}>
+                      {code}
+                    </option>
+                  )
+                )}
+              </select>
             </div>
 
             <div>
