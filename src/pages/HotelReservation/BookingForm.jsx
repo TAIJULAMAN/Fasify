@@ -513,17 +513,28 @@ export default function BookingForm({ hotel }) {
                 <div className="text-right">
                   <div className="font-semibold text-gray-900">
                     {currencySymbol}
-                    {formatPrice(nightlyPrice * roomsCount)}
+                    {formatPrice(
+                      room.discountedPrice > 0
+                        ? Math.max(
+                            0,
+                            Math.round(
+                              (room.convertedPrice *
+                                (100 - room.discountedPrice)) /
+                                100
+                            )
+                          )
+                        : room.convertedPrice
+                    )}
                   </div>
-                  {selectedRoomData?.discountedPrice > 0 && (
+                  {Number(room.discountedPrice) > 0 && (
                     <>
                       <span className="text-sm text-gray-400 line-through">
                         {currencySymbol}
-                        {formatPrice(nightlyBase * roomsCount)}
+                        {formatPrice(room.convertedPrice)}
                       </span>
 
                       <span className="text-xs bg-red-100 text-red-700 font-medium px-2 py-0.5 rounded">
-                        -{Math.round(Number(selectedRoomData.discountedPrice))}%
+                        -{Math.round(Number(room.discountedPrice))}%
                       </span>
                     </>
                   )}

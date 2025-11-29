@@ -114,7 +114,6 @@ export default function AddNewCar() {
         text: "Car created successfully!",
         confirmButtonText: "OK",
       });
-
     } catch (error) {
       console.error("Error creating car:", error);
       await Swal.fire({
