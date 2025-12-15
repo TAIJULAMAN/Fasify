@@ -435,7 +435,7 @@ export default function PaymentConfirm() {
               </div>
             </div>
 
-            {/* RIGHT - Price */}
+            {/* RIGHT - Countdown Timer and Price */}
             <div className="md:w-1/3 mt-10 md:mt-0">
               <div className="bg-white p-6  rounded-lg shadow-sm sticky top-6">
                 <h2 className="text-xl font-semibold mb-5">Price Summary</h2>

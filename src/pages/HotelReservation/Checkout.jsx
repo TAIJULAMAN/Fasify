@@ -24,7 +24,6 @@ export default function Checkout() {
   const user = useSelector((state) => state?.auth?.user);
 
   const bookingData = location.state?.bookingData || {};
-  console.log("ffffffffffffffffffffffffffff", bookingData);
   const guestInfo = location.state?.guestInfo || {};
 
   const [isProcessing, setIsProcessing] = useState(false);
@@ -194,7 +193,7 @@ export default function Checkout() {
         bookingId: bookingData.roomId,
         data: payload,
       }).unwrap();
-      console.log("rrrrrrrrrrrrrrrrrrrr", res);
+    
 
       const createdBookingId =
         res.data?._id || res.data?.id || res._id || res.id;
