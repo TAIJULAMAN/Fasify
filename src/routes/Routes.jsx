@@ -27,6 +27,7 @@ import SecurityDetails from "../pages/SecurityReservation/SecurityDetails";
 import SecurityServiceDetails from "../pages/SecurityReservation/SecurityServiceDetails";
 import SecurityProtocolDetails from "../pages/SecurityReservation/SecurityProtocolDetails";
 import SecurityServiceList from "../pages/SecurityReservation/SecurityServiceList";
+import SecurityPaymentConfirm from "../pages/SecurityReservation/SecurityPaymentConfirm";
 import SecurityCheckout from "../pages/SecurityReservation/SecurityCheckout";
 import SecurityPaymentPage from "../pages/Payment/PaymentPage";
 import SecurityBookingConfirmation from "../pages/SecurityReservation/SecurityBookingConfirmation";
@@ -68,6 +69,16 @@ import HotelAllImage from "../pages/HotelReservation/HotelAllImage";
 import GuastLogin from "../pages/HotelReservation/GuastLogin";
 import SecurityGuestLogin from "../pages/SecurityReservation/SecurityGuestLogin";
 import PaymentConfirm from "../pages/HotelReservation/PaymentConfirm";
+import AddNewSecurity from "../components/Security/AddNewSecurity";
+import EventGuastLogin from "../pages/AttractionReservation/EventGuastLogin";
+import EventPaymentConfirm from "../pages/AttractionReservation/EventPaymentConfirm";
+import CarGuestLogin from "../pages/CarReservation/CarGuestLogin";
+import BookingCancellation from "./../pages/HotelReservation/BookingCancellation";
+import ServiceProviderSignup from "../pages/Auth/ServiceProviderSignup";
+import CreateCar from "../components/Car/AddNewCar";
+import AddNewCar from "../components/Car/AddNewCar";
+import AddAttraction from "../components/Attraction/AddAttraction";
+import VerificationPartnerOtp from "../pages/Auth/PartnerOtp";
 
 export const routes = createBrowserRouter([
   {
@@ -171,6 +182,10 @@ export const routes = createBrowserRouter([
         element: <BookingConfirmation />,
       },
       {
+        path: "/booking-cancellation",
+        element: <BookingCancellation />,
+      },
+      {
         path: "/hotel/checkout",
         element: <Checkout />,
       },
@@ -190,6 +205,10 @@ export const routes = createBrowserRouter([
       {
         path: "/security/payment",
         element: <SecurityPaymentPage />,
+      },
+      {
+        path: "/security/payment-confirm",
+        element: <SecurityPaymentConfirm />,
       },
       {
         path: "/security-reservation",
@@ -240,6 +259,10 @@ export const routes = createBrowserRouter([
         element: <CarCheckout />,
       },
       {
+        path: "/car/guest-login",
+        element: <CarGuestLogin />,
+      },
+      {
         path: "/car/payment",
         element: <CarPaymentPage />,
       },
@@ -251,6 +274,7 @@ export const routes = createBrowserRouter([
         path: "/popular-car",
         element: <PopularCarPage />,
       },
+
       {
         path: "/attraction-reservation",
         element: <AttractionReservation />,
@@ -272,6 +296,14 @@ export const routes = createBrowserRouter([
         element: <EventPaymentPage />,
       },
       {
+        path: "/event/payment-confirm/:id",
+        element: <EventPaymentConfirm />,
+      },
+      {
+        path: "/event/guest-login",
+        element: <EventGuastLogin />,
+      },
+      {
         path: "/event/booking-confirmation",
         element: <EventBookingConfirmation />,
       },
@@ -284,12 +316,20 @@ export const routes = createBrowserRouter([
         element: <SignUp />,
       },
       {
+        path: "/service-provider/sign-up",
+        element: <ServiceProviderSignup />,
+      },
+      {
         path: "/forget-password",
         element: <ForgetPassword />,
       },
       {
         path: "/verification-code",
         element: <VerificationCode />,
+      },
+      {
+        path: "/verification-part-otp",
+        element: <VerificationPartnerOtp />,
       },
       {
         path: "/new-password",
@@ -336,10 +376,18 @@ export const routes = createBrowserRouter([
         ),
       },
       {
+        path: "add-car",
+        element: (
+          <RoleRoute allowed={["BUSINESS_PARTNER"]}>
+            <AddNewCar />,
+          </RoleRoute>
+        ),
+      },
+      {
         path: "add-security-listing",
         element: (
           <RoleRoute allowed={["BUSINESS_PARTNER"]}>
-            <AddSecurityBusiness />
+            <AddNewSecurity />
           </RoleRoute>
         ),
       },
@@ -356,6 +404,14 @@ export const routes = createBrowserRouter([
         element: (
           <RoleRoute allowed={["BUSINESS_PARTNER"]}>
             <AttractionManagement />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: "add-attraction",
+        element: (
+          <RoleRoute allowed={["BUSINESS_PARTNER"]}>
+            <AddAttraction />
           </RoleRoute>
         ),
       },

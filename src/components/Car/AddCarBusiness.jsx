@@ -1,15 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Upload, X, FileText } from "lucide-react";
 import { useAddCarBusinessMutation } from "../../redux/api/car/addCarBusinessApi";
 import Swal from "sweetalert2";
+import { countries } from "../../components/country";
 
 export default function AddCarBusiness() {
   const [formData, setFormData] = useState({
     carBusinessName: "",
     carName: "",
-    carBusinessType: "Private",
+    carBusinessType: "",
     carRegNum: "",
     carRegDate: "",
+    carRentalType: "",
     carPhone: "",
     carEmail: "",
     carTagline: "",
@@ -18,7 +20,7 @@ export default function AddCarBusiness() {
     carCancelationPolicy: "",
     officeAddress: "",
     officeCity: "",
-    officeCountry: "Bangladesh",
+    officeCountry: "",
     businessLogo: null,
     carDocs: [],
   });
@@ -78,6 +80,46 @@ export default function AddCarBusiness() {
     }
   };
 
+  // Auto-detect providers
+  const providers = [
+    {
+      name: "ipapi.co",
+      url: "https://ipapi.co/json/",
+      parse: (data) => ({ iso: data.country, raw: data }),
+    },
+    {
+      name: "extreme-ip-lookup",
+      url: "https://extreme-ip-lookup.com/json/",
+      parse: (data) => ({ iso: data.countryCode, raw: data }),
+    },
+    {
+      name: "ipinfo.io",
+      url: "https://ipinfo.io/json",
+      parse: (data) => ({ iso: data.country, raw: data }),
+    },
+  ];
+
+  // Auto detect country
+  useEffect(() => {
+    const detectCountry = async () => {
+      for (const provider of providers) {
+        try {
+          const res = await fetch(provider.url);
+          if (!res.ok) continue;
+
+          const json = await res.json();
+          const { iso } = provider.parse(json);
+
+          if (iso) {
+            setFormData((prev) => ({ ...prev, officeCountry: iso }));
+            break;
+          }
+        } catch { }
+      }
+    };
+    detectCountry();
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -124,9 +166,10 @@ export default function AddCarBusiness() {
         const resetForm = {
           carBusinessName: "",
           carName: "",
-          carBusinessType: "Private",
+          carBusinessType: "",
           carRegNum: "",
           carRegDate: "",
+          carRentalType: "",
           carPhone: "",
           carEmail: "",
           carTagline: "",
@@ -135,7 +178,7 @@ export default function AddCarBusiness() {
           carCancelationPolicy: "",
           officeAddress: "",
           officeCity: "",
-          officeCountry: "Bangladesh",
+          officeCountry: "",
           businessLogo: null,
           carDocs: [],
         };
@@ -220,7 +263,7 @@ export default function AddCarBusiness() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Business Name <span className="text-red-500">*</span>
@@ -298,6 +341,33 @@ export default function AddCarBusiness() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   required
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Car Rental Type
+                </label>
+                <select
+                  value={formData.carRentalType}
+                  onChange={(e) =>
+                    handleInputChange("carRentalType", e.target.value)
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="default">Car Rental Type</option>
+                  <option value="daily">Daily Rentals</option>
+                  <option value="weekly">Weekly Rentals</option>
+                  <option value="monthly">Monthly Rentals</option>
+                  <option value="long-term">Long-Term Leasing</option>
+                  <option value="self-drive">Self-Drive Rentals</option>
+                  <option value="chauffeur">Chauffeur-Driven Rentals</option>
+                  <option value="luxury">Luxury Car Rentals</option>
+                  <option value="sports">Sports Car Rentals</option>
+                  <option value="suv_rentals">SUV Rentals</option>
+                  <option value="ev">Electric Vehicle (EV) Rentals</option>
+                  <option value="airport">Airport Pickup and Dropoff</option>
+                  <option value="corporate">Corporate Rentals</option>
+                </select>
               </div>
             </div>
           </div>
@@ -420,16 +490,21 @@ export default function AddCarBusiness() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Country <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
+                <select
                   value={formData.officeCountry}
                   onChange={(e) =>
                     handleInputChange("officeCountry", e.target.value)
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Country name"
                   required
-                />
+                >
+                  <option value="">Select your country</option>
+                  {countries.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>

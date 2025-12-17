@@ -43,19 +43,19 @@ export const carApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["car"],
     }),
-    addSecurityGuard: builder.mutation({
-      query: ({ formData, Id }) => ({
-        url: `/car-rentals/car/${Id}`,
-        method: "POST",
-        body: formData,
-      }),
-      invalidatesTags: ["security"],
-    }),
     addCarBusiness: builder.mutation({
       query: (businessData) => ({
         url: "/car-rentals",
         method: "POST",
         body: businessData,
+      }),
+      invalidatesTags: ["car"],
+    }),
+    createCar: builder.mutation({
+      query: ({ formData, businessId }) => ({
+        url: `/car-rentals/car/${businessId}`,
+        method: "POST",
+        body: formData,
       }),
       invalidatesTags: ["car"],
     }),
@@ -105,12 +105,23 @@ export const carApi = baseApi.injectEndpoints({
       }),
       providesTags: ["car"],
     }),
-    loginWebsite: builder.mutation({
+    carLoginWebsite: builder.mutation({
       query: (credentials) => ({
         url: `/auth/login-website`,
         method: "POST",
         body: credentials,
       }),
+    }),
+    getCarBusinessPartner: builder.mutation({
+      query: ({ limit, page }) => ({
+        url: `/car-rentals/partner`,
+        method: "GET",
+        prepareHeaders: (headers) => {
+          headers.set("Accept", "application/json");
+          return headers;
+        },
+      }),
+      invalidatesTags: ["car"],
     }),
   }),
 });
@@ -128,7 +139,9 @@ export const {
   useCreateCarBookingMutation,
   useGetCarBookingByIdQuery,
   useLazyGetCarBookingByIdQuery,
-  useLoginWebsiteMutation,
+  useCarLoginWebsiteMutation,
   useCreateCarPaystackSessionMutation,
   useCreateCarStripeSessionMutation,
+  useCreateCarMutation,
+  useGetCarBusinessPartnerMutation,
 } = carApi;

@@ -1,20 +1,21 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Building2, Upload, X, FileText } from "lucide-react";
 import Swal from "sweetalert2";
 import { useAddSecurityBusinessMutation } from "../../redux/api/security/securityApi";
+import { countries } from "../../components/country";
 
 export default function AddSecurityBusiness() {
   const [formData, setFormData] = useState({
     securityBusinessName: "",
     securityName: "",
-    securityBusinessType: "Private Limited",
+    securityBusinessType: "",
     securityRegNum: "",
-    securityRegDate: "2025-10-22",
+    securityRegDate: "",
     securityPhone: "",
     securityEmail: "",
     securityTagline: "",
     securityProtocolDescription: "",
-    securityProtocolType: "Event Security",
+    securityProtocolType: "",
     securityBookingCondition: "",
     securityCancelationPolicy: "",
     hotelAddress: "",
@@ -24,7 +25,7 @@ export default function AddSecurityBusiness() {
     hotelCountry: "",
     hotelLate: "",
     hotelLong: "",
-    hotelAccommodationType: "5-Star Luxury",
+    hotelAccommodationType: "",
 
     businessLogo: null,
     securityDocs: [],
@@ -83,6 +84,46 @@ export default function AddSecurityBusiness() {
     }
   };
 
+  // Auto-detect providers
+  const providers = [
+    {
+      name: "ipapi.co",
+      url: "https://ipapi.co/json/",
+      parse: (data) => ({ iso: data.country, raw: data }),
+    },
+    {
+      name: "extreme-ip-lookup",
+      url: "https://extreme-ip-lookup.com/json/",
+      parse: (data) => ({ iso: data.countryCode, raw: data }),
+    },
+    {
+      name: "ipinfo.io",
+      url: "https://ipinfo.io/json",
+      parse: (data) => ({ iso: data.country, raw: data }),
+    },
+  ];
+
+  // Auto detect country
+  useEffect(() => {
+    const detectCountry = async () => {
+      for (const provider of providers) {
+        try {
+          const res = await fetch(provider.url);
+          if (!res.ok) continue;
+
+          const json = await res.json();
+          const { iso } = provider.parse(json);
+
+          if (iso) {
+            setFormData((prev) => ({ ...prev, hotelCountry: iso }));
+            break;
+          }
+        } catch {}
+      }
+    };
+    detectCountry();
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -130,8 +171,6 @@ export default function AddSecurityBusiness() {
         }
       });
 
-      console.log(formDataToSend, "formDataToSend");
-
       const response = await addSecurityBusiness(formDataToSend).unwrap();
 
       // ... rest of your success handling code ...
@@ -148,26 +187,26 @@ export default function AddSecurityBusiness() {
 
         // Reset form
         const resetForm = {
-          securityBusinessName: "asdf",
-          securityName: "asdf",
-          securityBusinessType: "Private Limited",
-          securityRegNum: "asdf",
-          securityRegDate: "2025-10-22",
-          securityPhone: "asdf",
-          securityEmail: "asdf@asdf.com",
-          securityTagline: "asdf",
-          securityProtocolDescription: "asdf",
-          securityProtocolType: "Event Security",
-          securityBookingCondition: "asdf",
-          securityCancelationPolicy: "asdf",
+          securityBusinessName: "",
+          securityName: "",
+          securityBusinessType: "",
+          securityRegNum: "",
+          securityRegDate: "",
+          securityPhone: "",
+          securityEmail: "",
+          securityTagline: "",
+          securityProtocolDescription: "",
+          securityProtocolType: "",
+          securityBookingCondition: "",
+          securityCancelationPolicy: "",
           hotelAddress: "",
-          hotelCity: "Dubai",
-          hotelPostalCode: "00000",
-          hotelDistrict: "Al Qudra",
-          hotelCountry: "United Arab Emirates",
+          hotelCity: "",
+          hotelPostalCode: "",
+          hotelDistrict: "",
+          hotelCountry: "",
           hotelLate: "",
           hotelLong: "",
-          hotelAccommodationType: "5-Star Luxury",
+          hotelAccommodationType: "",
           businessLogo: null,
           securityDocs: [],
         };
@@ -228,7 +267,10 @@ export default function AddSecurityBusiness() {
                       required
                       value={formData.securityBusinessName}
                       onChange={(e) =>
-                        handleInputChange("securityBusinessName", e.target.value)
+                        handleInputChange(
+                          "securityBusinessName",
+                          e.target.value
+                        )
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Your Security Business Ltd."
@@ -236,7 +278,7 @@ export default function AddSecurityBusiness() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Security Name <span className="text-red-500">*</span>
+                      Full Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -257,7 +299,10 @@ export default function AddSecurityBusiness() {
                       required
                       value={formData.securityBusinessType}
                       onChange={(e) =>
-                        handleInputChange("securityBusinessType", e.target.value)
+                        handleInputChange(
+                          "securityBusinessType",
+                          e.target.value
+                        )
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
@@ -390,16 +435,21 @@ export default function AddSecurityBusiness() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Country <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="text"
+                    <select
                       required
                       value={formData.hotelCountry}
                       onChange={(e) =>
                         handleInputChange("hotelCountry", e.target.value)
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="United Arab Emirates"
-                    />
+                    >
+                      <option value="">Select your country</option>
+                      {countries.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -423,7 +473,10 @@ export default function AddSecurityBusiness() {
                       rows={3}
                       value={formData.securityProtocolDescription}
                       onChange={(e) =>
-                        handleInputChange("securityProtocolDescription", e.target.value)
+                        handleInputChange(
+                          "securityProtocolDescription",
+                          e.target.value
+                        )
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Describe your security business/protocols..."
@@ -436,15 +489,23 @@ export default function AddSecurityBusiness() {
                     <select
                       value={formData.securityProtocolType}
                       onChange={(e) =>
-                        handleInputChange("securityProtocolType", e.target.value)
+                        handleInputChange(
+                          "securityProtocolType",
+                          e.target.value
+                        )
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       <option value="Event Security">Event Security</option>
-                      <option value="Corporate Security">Corporate Security</option>
-                      <option value="Residential Security">Residential Security</option>
-                      <option value="VIP Protection">VIP Protection</option>
-                      <option value="Crowd Control">Crowd Control</option>
+                      <option value="Executive Protection">
+                        Executive Protection
+                      </option>
+                      <option value="Security Guard">Security Guard</option>
+                      <option value="Personal Bodyguard">
+                        Personal Bodyguard
+                      </option>
+                      <option value="Escort">Escort</option>
+                      <option value="Vip">VIP Protection</option>
                     </select>
                   </div>
                   <div className="md:col-span-2">
@@ -480,58 +541,6 @@ export default function AddSecurityBusiness() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Free cancellation up to 48 hours before check-in. After that, one night charge will apply."
                     />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Latitude
-                    </label>
-                    <input
-                      type="number"
-                      step="0.000001"
-                      value={formData.hotelLate}
-                      onChange={(e) =>
-                        handleInputChange("hotelLate", e.target.value)
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="e.g., 2.33"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Longitude
-                    </label>
-                    <input
-                      type="number"
-                      step="0.000001"
-                      value={formData.hotelLong}
-                      onChange={(e) =>
-                        handleInputChange("hotelLong", e.target.value)
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="e.g., 2.4"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Accommodation Type
-                    </label>
-                    <select
-                      value={formData.hotelAccommodationType}
-                      onChange={(e) =>
-                        handleInputChange(
-                          "hotelAccommodationType",
-                          e.target.value
-                        )
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="5-Star Luxury">5-Star Luxury</option>
-                      <option value="4-Star">4-Star</option>
-                      <option value="3-Star">3-Star</option>
-                      <option value="Boutique">Boutique Hotel</option>
-                      <option value="Resort">Resort</option>
-                      <option value="Budget">Budget Hotel</option>
-                    </select>
                   </div>
                 </div>
               </div>
@@ -625,7 +634,8 @@ export default function AddSecurityBusiness() {
                   )}
                 </div>
                 <p className="text-xs text-gray-500">
-                  Upload licenses, protocols, and other relevant documents (PDF, DOC, DOCX)
+                  Upload licenses, protocols, and other relevant documents (PDF,
+                  DOC, DOCX)
                 </p>
               </div>
             </div>

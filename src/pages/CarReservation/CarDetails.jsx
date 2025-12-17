@@ -4,6 +4,7 @@ import CarCard from "./CarCard";
 import { useGetAllCarsQuery } from "../../redux/api/car/getAllCarsApi";
 import { useLocation, useNavigate } from "react-router-dom";
 import dayjs from "dayjs";
+import { currencyByCountry } from "../../components/curenci";
 
 const { RangePicker } = DatePicker;
 
@@ -18,6 +19,11 @@ export default function CarDetails() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Currency detection states
+  const [userCurrency, setUserCurrency] = useState("USD");
+  const [userCountry, setUserCountry] = useState(null);
+  const [conversionRate, setConversionRate] = useState(1);
+
   const queryParams = new URLSearchParams(location.search);
   const searchTerm = queryParams.get("searchTerm") || "";
   const fromDate = queryParams.get("fromDate") || "";
@@ -31,7 +37,6 @@ export default function CarDetails() {
 
   useEffect(() => {
     setPage(pageFromQuery);
-    // Prefill inputs from query string
     setLocationText(searchTerm || country || "");
     setCarType(carTypeFromQuery);
     if (fromDate || toDate) {
@@ -39,10 +44,8 @@ export default function CarDetails() {
       const end = toDate ? dayjs(toDate) : null;
       if (start || end) setDateRange([start, end]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep inputs in sync when URL query changes
   useEffect(() => {
     const q = new URLSearchParams(location.search);
     const qSearch = q.get("searchTerm") || "";
@@ -61,6 +64,48 @@ export default function CarDetails() {
     }
   }, [location.search]);
 
+  // Currency detection and conversion
+  useEffect(() => {
+    const detect = async () => {
+      try {
+        const res = await fetch("https://api.country.is/");
+        const data = await res.json();
+        const country = data.country;
+
+        if (country && currencyByCountry[country]) {
+          setUserCountry(country);
+          const userCurr = currencyByCountry[country].code;
+          setUserCurrency(userCurr);
+
+          // Fetch conversion: USD → user's currency
+          let rate = 1;
+
+          if ("USD" !== userCurr) {
+            const rateRes = await fetch(
+              "https://open.er-api.com/v6/latest/USD"
+            );
+            const rateData = await rateRes.json();
+
+            if (rateData?.rates) {
+              const usdToUser = rateData.rates[userCurr] || 1;
+              rate = usdToUser;
+            }
+          }
+
+          setConversionRate(rate);
+        } else {
+          setUserCurrency("USD");
+          setConversionRate(1);
+        }
+      } catch (e) {
+        setUserCurrency("USD");
+        setConversionRate(1);
+      }
+    };
+
+    detect();
+  }, []);
+
   const {
     data: carsData,
     isLoading,
@@ -70,31 +115,49 @@ export default function CarDetails() {
       page,
       limit: limitFromQuery,
       searchTerm,
-      fromDate,
-      toDate,
-      sortBy,
-      sortOrder,
-      country,
-      carType: carTypeFromQuery,
     },
     { skip: false }
   );
 
-  // Transform car data to match the expected car card props
-  const transformCarData = (car) => ({
-    id: car.id,
-    name: car.car_Rental?.carName || car.carModel,
-    location: searchTerm || country || `${car.carCity}, ${car.carCountry}`,
-    image: car.carImages?.[0] || "/car/default-car.png",
-    price: `$${car.carPriceDay}`,
-    rating: parseFloat(car.carRating) || 4.5,
-    type: car.carType,
-    seats: car.carSeats,
-    transmission: car.carTransmission,
-    fuelType: car.fuelType,
-    discount: car.discount,
-    isAvailable: car.isBooked === "AVAILABLE",
-  });
+  const transformCarData = (car) => {
+    // Currency conversion logic
+    const basePrice = Number(car.carPriceDay) || 0;
+    const baseCurrency = car?.displayCurrency || car?.currency || "USD";
+
+    // Calculate converted price
+    let convertedPrice = basePrice;
+    let displayCurrency = userCurrency || baseCurrency;
+
+    if (userCurrency && baseCurrency !== userCurrency && conversionRate) {
+      convertedPrice = Number(basePrice * conversionRate).toFixed(2);
+    }
+
+    return {
+      id: car.id,
+      name: car.car_Rental?.carName || car.carModel,
+      displayLocation:
+        (searchTerm || country || "").trim() ||
+        `${car.carCity}, ${car.carCountry}`,
+      location: `${car.carCity}, ${car.carCountry}`,
+      image: car.carImages?.[0] || "/car/default-car.png",
+
+      price: basePrice,
+      currency: baseCurrency,
+      convertedPrice: Number(convertedPrice),
+      displayCurrency: displayCurrency,
+      rating: parseFloat(car.carRating) || 4.5,
+      type: car.carType,
+      seats: car.carSeats,
+      transmission: car.carTransmission,
+      fuelType: car.fuelType,
+      discount: car.discount,
+      isAvailable: car.isBooked === "AVAILABLE",
+
+      // Add conversion props for CarCard
+      userCurrency,
+      conversionRate,
+    };
+  };
 
   // Update cars when new data is loaded
   useEffect(() => {
@@ -106,7 +169,7 @@ export default function CarDetails() {
         if (meta && meta.total > 0 && page !== 1) {
           // There are results overall, but not on this page. Fallback to page=1.
           const params = new URLSearchParams(location.search);
-          params.set('page', '1');
+          params.set("page", "1");
           navigate(`/car-details?${params.toString()}`);
           return;
         }
@@ -163,23 +226,17 @@ export default function CarDetails() {
 
   const handleSearch = () => {
     const params = new URLSearchParams();
-    // search term or country from input
     if (locationText) params.set("searchTerm", locationText);
-    // dates
     if (dateRange?.[0])
       params.set("fromDate", dateRange[0]?.format?.("YYYY-MM-DD"));
     if (dateRange?.[1])
       params.set("toDate", dateRange[1]?.format?.("YYYY-MM-DD"));
-    // car type
     if (carType) params.set("carType", carType);
-    // paging & keep limit
     params.set("page", "1");
     params.set("limit", String(limitFromQuery));
-    // keep sort if exists in current URL
     if (sortBy) params.set("sortBy", sortBy);
     if (sortOrder) params.set("sortOrder", sortOrder);
 
-    // Reset list then navigate
     setPage(1);
     setCars([]);
     setHasMore(true);
@@ -189,27 +246,7 @@ export default function CarDetails() {
   return (
     <div className="py-16 container mx-auto">
       <div className="bg-white p-5 rounded-2xl shadow-lg w-full">
-        {/* Summary based on API meta */}
-        {carsData?.data?.meta && (
-          <div className="mb-4 text-sm text-gray-600">
-            {(() => {
-              const {
-                total = 0,
-                page: curPage = page,
-                limit: lim = limitFromQuery,
-              } = carsData.data.meta;
-              const start = total === 0 ? 0 : (curPage - 1) * lim + 1;
-              const end = Math.min(curPage * lim, total);
-              const parts = [];
-              if (searchTerm) parts.push(`for "${searchTerm}"`);
-              if (country) parts.push(`in ${country}`);
-              if (carTypeFromQuery) parts.push(`type ${carTypeFromQuery}`);
-              const suffix = parts.length ? ` ${parts.join(" ")}` : "";
-              return `Showing ${start}–${end} of ${total}${suffix}`;
-            })()}
-          </div>
-        )}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
           {/* Location Input */}
           <div className="space-y-2">
             <input
@@ -227,20 +264,6 @@ export default function CarDetails() {
             onChange={setDateRange}
             style={{ width: "100%" }}
           />
-          {/* Car Type */}
-          <div className="space-y-2">
-            <select
-              className="w-full p-3 border border-gray-200 rounded-lg text-gray-500 placeholder:text-gray-400 focus:outline-none focus:border-[#0064D2]"
-              value={carType}
-              onChange={(e) => setCarType(e.target.value)}
-            >
-              <option value="">Select Car Type</option>
-              <option value="Sedan">Sedan</option>
-              <option value="SUV">SUV</option>
-              <option value="Luxury">Luxury</option>
-              <option value="Sports">Sports</option>
-            </select>
-          </div>
         </div>
         {/* Search Button */}
         <div>
@@ -256,7 +279,14 @@ export default function CarDetails() {
       {/* Cars Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 container mx-auto py-10">
         {cars.map((car, index) => (
-          <CarCard key={`${car.id}-${index}`} car={car} />
+          <CarCard
+            key={`${car.id}-${index}`}
+            car={car}
+            queryString={location.search}
+            userCurrency={userCurrency}
+            userCountry={userCountry}
+            conversionRate={conversionRate}
+          />
         ))}
       </div>
 
@@ -274,7 +304,8 @@ export default function CarDetails() {
       {!isLoading && cars.length === 0 && (
         <div className="col-span-full text-center py-10">
           <p className="text-gray-500">
-            No cars available for the selected filters. Try changing search, dates, or car type.
+            No cars available for the selected filters. Try changing search,
+            dates, or car type.
           </p>
         </div>
       )}

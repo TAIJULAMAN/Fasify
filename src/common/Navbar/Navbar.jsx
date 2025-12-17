@@ -86,10 +86,13 @@ export default function Navbar() {
   const dispatch = useDispatch();
   const accessToken = useSelector((s) => s?.auth?.accessToken);
   // Use accessToken as an argument to change the cache key when switching users
-  const { data: profileRes, isFetching: profileLoading } = useGetMyProfileQuery(accessToken, {
-    skip: !accessToken,
-    refetchOnMountOrArgChange: true,
-  });
+  const { data: profileRes, isFetching: profileLoading } = useGetMyProfileQuery(
+    accessToken,
+    {
+      skip: !accessToken,
+      refetchOnMountOrArgChange: true,
+    }
+  );
   const user = profileRes?.data || null;
 
   const languages = [
@@ -156,7 +159,7 @@ export default function Navbar() {
           {/* Right Side Actions */}
           <div className="flex items-center space-x-2">
             {/* Language Dropdown - Hidden on mobile */}
-            <div className="relative hidden sm:block">
+            {/* <div className="relative hidden sm:block">
               <button
                 onClick={() => setIsLanguageOpen(!isLanguageOpen)}
                 className="flex items-center space-x-1 p-2 hover:bg-gray-100 rounded-lg transition-colors"
@@ -199,10 +202,9 @@ export default function Navbar() {
                   ))}
                 </div>
               )}
-            </div>
+            </div> */}
 
             {/* Cart - Hidden on mobile */}
-      
 
             {/* Auth/Profile Area */}
             {accessToken ? (
@@ -262,9 +264,7 @@ export default function Navbar() {
                           navigate("/");
                         }}
                       >
-                        <button
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 text-red-600"
-                        >
+                        <button className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 text-red-600">
                           Logout
                         </button>
                       </Popconfirm>
@@ -337,7 +337,7 @@ export default function Navbar() {
               </div>
 
               {/* Mobile Language Selector */}
-              <div className="border-t border-gray-200 pt-3">
+              {/* <div className="border-t border-gray-200 pt-3">
                 <div className="relative">
                   <button
                     onClick={() => setIsLanguageOpen(!isLanguageOpen)}
@@ -380,14 +380,16 @@ export default function Navbar() {
                     </div>
                   )}
                 </div>
-              </div>
+              </div> */}
 
               {/* Mobile Actions */}
               <div className="border-t border-gray-200 pt-3 space-y-2">
-            
                 {accessToken ? (
                   <>
-                    <button onClick={() => navigate("/dashboard/profile")} className="w-full text-left px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+                    <button
+                      onClick={() => navigate("/dashboard/profile")}
+                      className="w-full text-left px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
                       Dashboard
                     </button>
                     <Popconfirm
@@ -397,7 +399,11 @@ export default function Navbar() {
                       cancelText="No"
                       zIndex={10050}
                       getPopupContainer={() => document.body}
-                      onConfirm={() => { dispatch(authApi.util.resetApiState()); dispatch(logout()); navigate("/"); }}
+                      onConfirm={() => {
+                        dispatch(authApi.util.resetApiState());
+                        dispatch(logout());
+                        navigate("/");
+                      }}
                     >
                       <button className="w-full text-left px-4 py-3 text-sm font-medium text-red-600 hover:bg-gray-100 rounded-lg transition-colors">
                         Logout
@@ -411,7 +417,10 @@ export default function Navbar() {
                         Sign In
                       </button>
                     </Link>
-                    <button onClick={() => navigate("/sign-up")} className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg text-sm font-medium transition-colors">
+                    <button
+                      onClick={() => navigate("/sign-up")}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg text-sm font-medium transition-colors"
+                    >
                       Sign Up
                     </button>
                   </>

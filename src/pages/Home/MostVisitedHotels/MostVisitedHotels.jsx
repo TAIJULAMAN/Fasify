@@ -5,12 +5,62 @@ import { useGetPopularHotelsQuery } from "../../../redux/api/hotel/hotelApi";
 export default function MostVisitedHotels() {
   const { data, isLoading, isError } = useGetPopularHotelsQuery(4);
   const hotelsApi = data?.data || [];
+  const getFirstImageFrom = (val) => {
+    if (!val) return undefined;
+    if (typeof val === "string") return val;
+    if (Array.isArray(val)) {
+      const first = val[0];
+      if (!first) return undefined;
+      if (typeof first === "string") return first;
+      return (
+        first.url ||
+        first.imageUrl ||
+        first.src ||
+        first.path ||
+        first.Location ||
+        first.fileUrl ||
+        first.file ||
+        first.link ||
+        first.value
+      );
+    }
+    if (typeof val === "object") {
+      return (
+        val.url ||
+        val.imageUrl ||
+        val.src ||
+        val.path ||
+        val.Location ||
+        val.fileUrl ||
+        val.file ||
+        val.link ||
+        val.value
+      );
+    }
+    return undefined;
+  };
   const hotels = hotelsApi.map((h) => ({
-    name: h.category || h.hotelAccommodationType || h.hotelRoomType || "Hotel",
+    id: h.id || h._id || h.hotelId,
+    name:
+      h.hotelName ||
+      h.hotelBusinessName ||
+      h.category ||
+      h.hotelAccommodationType ||
+      h.hotelRoomType ||
+      "Hotel",
     location: [h.hotelCity, h.hotelCountry].filter(Boolean).join(", "),
-    image: (h.hotelImages && h.hotelImages[0]) || (h.hotelRoomImages && h.hotelRoomImages[0]) || "/placeholder.svg",
-    price: h.hotelRoomPriceNight ? `$${h.hotelRoomPriceNight}` : "",
-    rating: h.hotelRating ? Number(h.hotelRating) : 0,
+    image:
+      getFirstImageFrom(h.hotelImages) ||
+      getFirstImageFrom(h.hotelRoomImages) ||
+      getFirstImageFrom(h.images) ||
+      h.coverImage ||
+      h.hotelCoverImage ||
+      h.businessLogo ||
+      h.hotelLogo ||
+      h.logo ||
+      h.image ||
+      "/placeholder.svg",
+    raw: h,
   }));
 
   return (
@@ -30,11 +80,17 @@ export default function MostVisitedHotels() {
 
         {/* Hotels Grid */}
         {isLoading ? (
-          <div className="text-center py-10 text-gray-600">Loading popular hotels...</div>
+          <div className="text-center py-10 text-gray-600">
+            Loading popular hotels...
+          </div>
         ) : isError ? (
-          <div className="text-center py-10 text-red-600">Failed to load popular hotels.</div>
+          <div className="text-center py-10 text-red-600">
+            Failed to load popular hotels.
+          </div>
         ) : hotels.length === 0 ? (
-          <div className="text-center py-10 text-gray-600">No popular hotels found.</div>
+          <div className="text-center py-10 text-gray-600">
+            No popular hotels found.
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {hotels.map((hotel, index) => (

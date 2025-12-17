@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { DatePicker } from "antd";
+import dayjs from "dayjs";
 
 export default function SecurityReservationHero() {
   const { RangePicker } = DatePicker;
@@ -9,31 +10,77 @@ export default function SecurityReservationHero() {
   const [securityType, setSecurityType] = useState("");
   const [dateRange, setDateRange] = useState(null);
 
+  // Load data from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedData = localStorage.getItem("securitySearchData");
+      if (savedData) {
+        const data = JSON.parse(savedData);
+        setLocation(data.location || "");
+        setSecurityType(data.securityType || "");
+        if (data.dateRange && data.dateRange[0] && data.dateRange[1]) {
+          setDateRange([dayjs(data.dateRange[0]), dayjs(data.dateRange[1])]);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading saved data:", error);
+    }
+  }, []);
+
+  // Save data to localStorage when values change
+  useEffect(() => {
+    if (location || securityType || dateRange) {
+      const dataToSave = {
+        location,
+        securityType,
+        dateRange:
+          dateRange && dateRange[0] && dateRange[1]
+            ? [
+                dateRange[0].format("YYYY-MM-DD"),
+                dateRange[1].format("YYYY-MM-DD"),
+              ]
+            : null,
+      };
+      localStorage.setItem("securitySearchData", JSON.stringify(dataToSave));
+    }
+  }, [location, securityType, dateRange]);
+
   const handleSearch = () => {
     const hasLocation = Boolean(location?.trim());
     const hasDates = Boolean(dateRange?.[0]) || Boolean(dateRange?.[1]);
     const hasType = Boolean(securityType);
-    if (!hasLocation && !hasDates && !hasType) return; // do nothing when all empty
+    if (!hasLocation && !hasDates && !hasType) return;
 
-    const params = new URLSearchParams();
+    let country = "";
+    let city = "";
     if (location) {
       const parts = location
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
       if (parts.length === 2) {
-        params.set("country", parts[0]);
-        params.set("city", parts[1]);
+        country = parts[0];
+        city = parts[1];
       } else if (parts.length === 1) {
-        params.set("city", parts[0]);
+        city = parts[0];
       }
     }
-    if (dateRange?.[0]) params.set("fromDate", dateRange[0].format("YYYY-MM-DD"));
-    if (dateRange?.[1]) params.set("toDate", dateRange[1].format("YYYY-MM-DD"));
-    if (securityType) params.set("securityProtocolType", securityType);
-    const qs = params.toString();
-    const url = qs ? `/security-details?${qs}` : "/security-details";
-    navigate(url);
+
+    const fromDate = dateRange?.[0] ? dateRange[0].format("YYYY-MM-DD") : null;
+    const toDate = dateRange?.[1] ? dateRange[1].format("YYYY-MM-DD") : null;
+
+    const params = new URLSearchParams();
+    if (location) params.set("location", location);
+    if (country) params.set("country", country);
+    if (city) params.set("city", city);
+    if (fromDate) params.set("fromDate", fromDate);
+    if (toDate) params.set("toDate", toDate);
+    if (securityType) params.set("securityType", securityType);
+
+    // Clear localStorage after search
+    localStorage.removeItem("securitySearchData");
+
+    navigate(`/security-details?${params.toString()}`);
   };
 
   const onSearch = () => {
@@ -103,6 +150,8 @@ export default function SecurityReservationHero() {
                     Executive Protection
                   </option>
                   <option value="Event Security">Event Security</option>
+                  <option value="Escort">Escort</option>
+                  <option value="vip">Vip Protection</option>
                 </select>
               </div>
             </div>
@@ -110,7 +159,10 @@ export default function SecurityReservationHero() {
             <div className="">
               {(() => {
                 const isDisabled =
-                  !location?.trim() && !dateRange?.[0] && !dateRange?.[1] && !securityType;
+                  !location?.trim() &&
+                  !dateRange?.[0] &&
+                  !dateRange?.[1] &&
+                  !securityType;
                 return (
                   <button
                     onClick={handleSearch}

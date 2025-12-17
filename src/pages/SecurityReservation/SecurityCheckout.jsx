@@ -1,525 +1,495 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Shield, CreditCard, ArrowLeft, Check, Calendar } from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
 import {
-  useCreateSecurityBookingMutation,
-  useCreateSecurityStripeCheckoutSessionMutation,
-  useCreateSecurityPaystackCheckoutSessionMutation,
-} from "../../redux/api/security/securityBookingApi";
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { Modal, message } from "antd";
-import { UserOutlined } from "@ant-design/icons";
-
-const AFRICAN_COUNTRIES = [
-  "Algeria",
-  "Angola",
-  "Benin",
-  "Botswana",
-  "Burkina Faso",
-  "Burundi",
-  "Cabo Verde",
-  "Cameroon",
-  "Central African Republic",
-  "Chad",
-  "Comoros",
-  "Congo",
-  "Democratic Republic of the Congo",
-  "Djibouti",
-  "Egypt",
-  "Equatorial Guinea",
-  "Eritrea",
-  "Eswatini",
-  "Ethiopia",
-  "Gabon",
-  "Gambia",
-  "Ghana",
-  "Guinea",
-  "Guinea-Bissau",
-  "Ivory Coast",
-  "Kenya",
-  "Lesotho",
-  "Liberia",
-  "Libya",
-  "Madagascar",
-  "Malawi",
-  "Mali",
-  "Mauritania",
-  "Mauritius",
-  "Morocco",
-  "Mozambique",
-  "Namibia",
-  "Niger",
-  "Nigeria",
-  "Rwanda",
-  "Sao Tome and Principe",
-  "Senegal",
-  "Seychelles",
-  "Sierra Leone",
-  "Somalia",
-  "South Africa",
-  "South Sudan",
-  "Sudan",
-  "Tanzania",
-  "Togo",
-  "Tunisia",
-  "Uganda",
-  "Zambia",
-  "Zimbabwe",
-];
+  ArrowLeft,
+  Calendar,
+  Users,
+  MapPin,
+  User,
+  Mail,
+  Phone,
+} from "lucide-react";
+import { useCreateSecurityBookingMutation } from "../../redux/api/security/securityBookingApi";
+import { handleError, handleSuccess } from "../../../toast";
+import { currencyByCountry } from "../../components/curenci";
 
 export default function SecurityCheckout() {
+  const [userCurrency, setUserCurrency] = useState("USD");
+  const [userCountry, setUserCountry] = useState(null);
+  const [conversionRate, setConversionRate] = useState(1);
+
   const location = useLocation();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
-  // State
-  const [isReserved, setIsReserved] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [createdBooking, setCreatedBooking] = useState(null);
-  const [createdBookingId, setCreatedBookingId] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState("stripe"); // 'stripe' or 'paystack'
-  const [showPaymentChoiceModal, setShowPaymentChoiceModal] = useState(false);
+  const user = useSelector((state) => state?.auth?.user);
 
-  // API Mutations
-  const [createBooking, { isLoading: isCreating }] =
-    useCreateSecurityBookingMutation();
-  const [createStripeCheckout] =
-    useCreateSecurityStripeCheckoutSessionMutation();
-  const [createPaystackCheckout] =
-    useCreateSecurityPaystackCheckoutSessionMutation();
 
-  const bookingDetails = location.state?.bookingDetails || {};
+  const raw = location.state || {};
 
-  console.log("Booking Details11111111111111", bookingDetails);
+  const bookingDetails =
+    raw.payload ||
+    raw.bookingData ||
+    raw.data?.data ||
+    raw.data ||
+    raw.resp?.data ||
+    raw.resp ||
+    raw.payload?.data ||
+    {};
 
-  // Check if user is in Africa (for payment method selection)
-  const isAfricaByCountry = (country) => {
-    const africanCountries = [
-      "Nigeria",
-      "Ghana",
-      "Kenya",
-      "South Africa",
-      "Egypt",
-      "Morocco",
-      "Ethiopia",
-      "Tanzania",
-      "Uganda",
-      "Zimbabwe",
-      "Zambia",
-      "Rwanda",
-      "Senegal",
-      "Tunisia",
-    ];
-    return country && africanCountries.includes(country);
+  const guardInfo = {
+    guardId:
+      bookingDetails?.guardId || bookingDetails?.id || bookingDetails?._id,
+    guardName:
+      bookingDetails?.guardName ||
+      bookingDetails?.securityGuardName ||
+      bookingDetails?.securityName ||
+      bookingDetails?.name ||
+      "Security Guard",
+    serviceType: bookingDetails?.serviceType || "Security",
+    serviceDescription:
+      bookingDetails?.serviceDescription || "Professional security service",
+    startDate:
+      bookingDetails?.startDate || bookingDetails?.securityBookedFromDate,
+    endDate: bookingDetails?.endDate || bookingDetails?.securityBookedToDate,
+    personnelCount:
+      bookingDetails?.personnelCount || bookingDetails?.number_of_security || 1,
+    photo:
+      bookingDetails?.photo || bookingDetails?.guardPhoto || "/placeholder.svg",
   };
 
-  // Get user country from booking details or localStorage
-  const storedUserRaw =
-    typeof window !== "undefined"
-      ? localStorage.getItem("user") || localStorage.getItem("profile") || null
+
+  const guestInfo = raw.guestInfo || {};
+
+  const [createSecurityBooking, { isLoading }] =
+    useCreateSecurityBookingMutation();
+
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Currency detection and conversion
+  const baseCurrency =
+    bookingDetails?.currency || bookingDetails?.displayCurrency || "USD";
+  const basePrice =
+    bookingDetails?.pricePerDay || bookingDetails?.convertedPrice || 0;
+
+
+
+  useEffect(() => {
+    const detect = async () => {
+      try {
+        const res = await fetch("https://api.country.is/");
+        const data = await res.json();
+        const country = data.country;
+
+        if (country && currencyByCountry[country]) {
+          setUserCountry(country);
+          const userCurr = currencyByCountry[country].code;
+          setUserCurrency(userCurr);
+
+          let rate = 1;
+
+          if (baseCurrency !== userCurr) {
+            const rateRes = await fetch(
+              "https://open.er-api.com/v6/latest/USD"
+            );
+            const rateData = await rateRes.json();
+
+            if (rateData?.rates) {
+              const baseToUSD =
+                baseCurrency === "USD" ? 1 : 1 / rateData.rates[baseCurrency];
+              const usdToUser = rateData.rates[userCurr] || 1;
+              rate = baseToUSD * usdToUser;
+            }
+          } else {
+          }
+
+          setConversionRate(rate);
+        } else {
+          setUserCurrency("USD");
+          setConversionRate(1);
+        }
+      } catch (e) {
+        console.error("Detection or conversion failed:", e);
+        setUserCurrency("USD");
+        setConversionRate(1);
+      }
+    };
+
+    detect();
+  }, [baseCurrency]);
+
+  // =============================
+  // Calculate Days
+  // =============================
+  const days = (() => {
+    const start = bookingDetails?.startDate
+      ? new Date(bookingDetails.startDate)
+      : null;
+    const end = bookingDetails?.endDate
+      ? new Date(bookingDetails.endDate)
       : null;
 
-  let userCountry = bookingDetails.user?.country || "";
+    if (!start || !end) return 1;
 
-  if (!userCountry && storedUserRaw) {
-    try {
-      const storedUser = JSON.parse(storedUserRaw);
-      userCountry =
-        storedUser?.country ||
-        storedUser?.address?.country ||
-        storedUser?.profile?.country ||
-        storedUser?.location?.country ||
-        "";
-    } catch (e) {
-      console.error("Error parsing user data:", e);
-    }
-  }
+    const diff = Math.ceil(
+      (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
+    );
 
-  const isAfricanUser = AFRICAN_COUNTRIES.some(
-    (c) => c.toLowerCase() === String(userCountry).toLowerCase()
-  );
+    return diff > 0 ? diff : 1;
+  })();
 
-  // Calculate booking details
-  const days =
-    Math.ceil(
-      (new Date(bookingDetails.endDate) - new Date(bookingDetails.startDate)) /
-        (1000 * 60 * 60 * 24)
-    ) || 1;
+  // =============================
+  // CONVERTED PRICE CALCULATION
+  // =============================
 
-  const servicePrice = bookingDetails.pricePerDay || 0;
-  const subtotal = servicePrice * days;
-  const taxRate = 0.05; // 5% tax
-  const tax = subtotal * taxRate;
-  const total = subtotal + tax;
-  const shouldUsePaystack = isAfricaByCountry(userCountry);
+  // fallback values (price always comes)
+  const pricePerDay =
+    Number(bookingDetails?.pricePerDay) ||
+    Number(bookingDetails?.securityPriceDay) ||
+    Number(bookingDetails?.unitPrice) ||
+    Number(bookingDetails?.convertedPrice) ||
+    0;
 
-  // Check if user is logged in
-  const isLoggedIn = Boolean(
-    typeof window !== "undefined" &&
-      (localStorage.getItem("accessToken") ||
-        localStorage.getItem("token") ||
-        localStorage.getItem("user"))
-  );
+  const personnelCount = Number(guardInfo.personnelCount || 1);
 
-  // Handle API errors
-  const apiError = location.state?.error || location.state?.apiError || null;
-  useEffect(() => {
-    if (apiError) {
-      const statusCode =
-        apiError?.statusCode || apiError?.status || apiError?.err?.statusCode;
-      const errorMessage =
-        apiError?.message || apiError?.errorMessages?.[0]?.message;
+  // Convert price to user's currency
+  const convertedPricePerDay = Number(pricePerDay * conversionRate).toFixed(2);
 
-      if (statusCode === 401 || /not authorized/i.test(errorMessage || "")) {
-        setShowAuthModal(true);
-      }
+  // Always fresh subtotal with converted prices
+  const calculatedSubtotal =
+    Number(convertedPricePerDay) * days * personnelCount;
 
-      if (errorMessage) {
-        message.error(errorMessage);
-      }
-    }
-  }, [apiError]);
+  // Static 5% VAT
+  const vatRate = 5;
+  const vatAmount = Number((calculatedSubtotal * 0.05).toFixed(2));
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+  // Final Total = subtotal + VAT
+  const finalTotal = Number((calculatedSubtotal + vatAmount).toFixed(2));
+
+
+
+  // =============================
+  // Guest Information
+  // =============================
+  const deriveGuest = () => ({
+    name:
+      guestInfo?.name ||
+      guestInfo?.fullName ||
+      bookingDetails?.user?.name ||
+      bookingDetails?.user?.fullName ||
+      user?.name ||
+      user?.fullName ||
+      "",
+    email: guestInfo?.email || bookingDetails?.user?.email || user?.email || "",
+    phone:
+      guestInfo?.phone ||
+      guestInfo?.contactNumber ||
+      bookingDetails?.user?.phone ||
+      bookingDetails?.user?.contactNumber ||
+      user?.phone ||
+      user?.contactNumber ||
+      "",
+    address:
+      guestInfo?.address ||
+      guestInfo?.country ||
+      bookingDetails?.user?.address ||
+      bookingDetails?.user?.country ||
+      user?.address ||
+      user?.country ||
+      "",
+  });
+
+  const [updatedUser, setUpdatedUser] = useState(deriveGuest());
+
+  React.useEffect(() => {
+    setUpdatedUser(deriveGuest());
+  }, [
+    JSON.stringify(guestInfo),
+    JSON.stringify(bookingDetails?.user),
+    JSON.stringify(user),
+  ]);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setUpdatedUser((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleProceedToBooking = async () => {
-    try {
-      setIsProcessing(true);
-      const id = bookingDetails?.guardId;
-      const days = bookingDetails?.days || 1;
-      const total =
-        bookingDetails?.total || (bookingDetails?.pricePerDay || 0) * days;
-      const body = {
-        number_of_security: bookingDetails?.personnelCount || 1,
-        securityBookedFromDate: bookingDetails?.startDate,
-        securityBookedToDate: bookingDetails?.endDate,
-        totalPrice: total,
-        guardId: bookingDetails?.guardId,
-        serviceType: bookingDetails?.serviceType || "Security",
-        status: "pending",
-        paymentStatus: "pending",
-        guardName: bookingDetails?.guardName,
-        pricePerDay: bookingDetails?.pricePerDay,
-        serviceDescription: bookingDetails?.serviceDescription,
-      };
-      console.log("Creating booking with:", { id, body });
-      const resp = await createBooking({ id, body }).unwrap();
-      console.log("Create booking response:", resp);
-      const bookingData = resp?.data || resp;
-      setCreatedBooking(bookingData);
-      setCreatedBookingId(bookingData?._id || bookingData?.id);
-      setIsReserved(true);
-      setShowPaymentChoiceModal(true);
-    } catch (err) {
-      console.error("Create booking failed:", err);
-      const statusCode =
-        err?.status || err?.data?.statusCode || err?.originalStatus;
-      const apiMessage =
-        err?.data?.message ||
-        err?.data?.error ||
-        err?.data?.errorMessage ||
-        err?.data?.errorMessages?.[0]?.message ||
-        err?.error ||
-        err?.message ||
-        "";
-      const isAlreadyBooked = /already\s*book(ed)?/i.test(apiMessage);
-      if (statusCode === 401) {
-        setShowAuthModal(true);
-      }
-      toast.dismiss();
-      toast.error(
-        isAlreadyBooked
-          ? "This security service is already booked for the selected dates"
-          : apiMessage || "Failed to create booking. Please try again."
-      );
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleProceedToPayment = async () => {
-    if (!createdBookingId || !bookingDetails.user) {
-      message.error("Booking information is incomplete");
+  // =============================
+  // Confirm Booking
+  // =============================
+  const handleReserveConfirm = async () => {
+    // Use the actual security protocol ID from booking details
+    if (!bookingDetails?.guardId) {
+      handleError("Guard information is missing");
       return;
     }
+    if (!user) return;
 
     setIsProcessing(true);
+
     try {
-      const userEmail = bookingDetails.user.email;
-      const userName = bookingDetails.user.name || "Customer";
+      const body = {
+        // Booking Info
+        number_of_security:
+          bookingDetails?.number_of_security ??
+          bookingDetails?.personnelCount ??
+          1,
 
-      if (shouldUsePaystack) {
-        // Handle Paystack payment
-        const result = await createPaystackCheckout({
-          bookingId: createdBookingId,
-          body: {
-            email: userEmail,
-            amount: Math.round(total * 100), // Convert to kobo/pesewas
-            currency: "NGN",
-            metadata: {
-              bookingId: createdBookingId,
-              customerName: userName,
-            },
-          },
-        }).unwrap();
+        securityBookedFromDate:
+          bookingDetails?.securityBookedFromDate || bookingDetails?.startDate,
 
-        if (result?.data?.checkoutUrl) {
-          window.location.href = result.data.checkoutUrl;
-        } else {
-          message.error("Failed to initialize payment. Please try again.");
+        securityBookedToDate:
+          bookingDetails?.securityBookedToDate || bookingDetails?.endDate,
+
+        // TOTAL PRICE ALWAYS SUBTOTAL + VAT (using converted prices)
+        totalPrice: finalTotal,
+        vatAmount: vatAmount,
+        vatRate: 5,
+
+        // Use converted prices and user currency
+        convertedPrice: Number(convertedPricePerDay),
+        displayCurrency: userCurrency,
+        currency: userCurrency,
+
+        discountedPrice: bookingDetails?.discountedPrice ?? 0,
+        cancelationPolicy: bookingDetails?.cancellationPolicy,
+
+        // Identification - Use security protocol ID (the actual guard entry)
+        guardId: bookingDetails?.guardId, // This should be "6918e5fcc17c4e67050efc64" for Danny Khan
+        guardName: bookingDetails?.guardName,
+        serviceType: bookingDetails?.serviceType || "Security",
+        serviceDescription: bookingDetails?.serviceDescription,
+        pricePerDay: Number(convertedPricePerDay),
+
+        // Contact / User
+        name: updatedUser?.name,
+        email: updatedUser?.email,
+        phone: updatedUser?.phone,
+        address: updatedUser?.address,
+
+        status: "pending",
+        paymentStatus: "pending",
+      };
+
+      // Use the security protocol ID (the actual guard entry ID)
+      const resp = await createSecurityBooking({
+        id: bookingDetails?.guardId, // This should be "6918e5fcc17c4e67050efc64" not "6918e333c17c4e67050efc60"
+        body,
+      }).unwrap();
+
+      handleSuccess("Security service reserved successfully!");
+
+      const createdBookingId = resp?.data?.id || resp?.id || "";
+
+      navigate(
+        `/security/payment-confirm?bookingId=${encodeURIComponent(
+          createdBookingId
+        )}`,
+        {
+          state: { data: resp, data2: bookingDetails },
+          replace: true,
         }
-      } else {
-        // Handle Stripe payment
-        const result = await createStripeCheckout({
-          bookingId: createdBookingId,
-          body: {
-            email: userEmail,
-            name: userName,
-            amount: Math.round(total * 100), // Convert to cents
-            currency: "USD",
-            metadata: {
-              bookingId: createdBookingId,
-              customerName: userName,
-            },
-            success_url: `${window.location.origin}/payment/success`,
-            cancel_url: `${window.location.origin}/booking/cancel`,
-          },
-        }).unwrap();
-
-        if (result?.data?.checkoutUrl) {
-          window.location.href = result.data.checkoutUrl;
-        } else {
-          message.error("Failed to initialize payment. Please try again.");
-        }
-      }
-    } catch (error) {
-      console.error("Payment error:", error);
-      message.error("Failed to process payment. Please try again.");
+      );
+    } catch (e) {
+      const msg =
+        e?.data?.message || e?.message || "Failed to create security booking";
+      handleError(msg);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  const handleGoBack = () => {
-    navigate(-1);
+  const handleBackToBooking = () => {
+    navigate("/security-details");
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="container mx-auto px-4">
-        <div className="max-w-8xl mx-auto">
-          {/* Header */}
-          <div className="mb-8">
-            <button
-              onClick={handleGoBack}
-              className="flex items-center text-gray-600 hover:text-gray-800 mb-4"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Service Details
-            </button>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Security Service Checkout
-            </h1>
-            <p className="text-gray-600 mt-2">
-              Review your booking details before proceeding to payment
-            </p>
-          </div>
+  const formatDate = (dateString) =>
+    new Date(dateString).toLocaleDateString("en-US", {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left Column - Booking Details */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* User Information Card */}
-              <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-                <div className="flex items-center mb-4">
-                  <UserOutlined className="w-6 h-6 text-blue-600 mr-3" />
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    Your Information
-                  </h2>
-                </div>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Full Name</p>
-                      <p className="font-medium">{bookingDetails.user?.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Email</p>
-                      <p className="font-medium">
-                        {bookingDetails.user?.email}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Phone</p>
-                      <p className="font-medium">
-                        {bookingDetails.user?.phone}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Country</p>
-                      <p className="font-medium">
-                        {bookingDetails.user?.country}
-                      </p>
-                    </div>
+  // =============================
+  // UI
+  // =============================
+
+  return (
+    <div className="min-h-screen items-center bg-gray-50 py-4 md:py-8">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="flex items-center mb-6">
+          <button
+            onClick={handleBackToBooking}
+            className="flex items-center text-gray-600 hover:text-gray-900"
+          >
+            <ArrowLeft className="w-6 h-6 mr-2" />
+            <h1 className="text-2xl font-bold text-gray-900">Checkout</h1>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* LEFT SIDE */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <h2 className="text-xl font-semibold mb-4">Booking Summary</h2>
+
+              {/* Guest Info */}
+              <div className="bg-blue-50 rounded-lg p-4 mb-4">
+                <h3 className="text-md font-medium mb-3">Guest Information</h3>
+
+                <form className="space-y-4">
+                  <div>
+                    <label className="flex items-center text-sm font-medium text-gray-700">
+                      <User className="w-4 h-4" /> Full Name
+                    </label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={updatedUser.name}
+                      onChange={handleInputChange}
+                      className="mt-1 w-full rounded-md border-gray-300 p-2 border"
+                    />
                   </div>
+
+                  <div>
+                    <label className="flex items-center text-sm font-medium text-gray-700">
+                      <Mail className="w-4 h-4" /> Email
+                    </label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={updatedUser.email}
+                      onChange={handleInputChange}
+                      className="mt-1 w-full rounded-md border-gray-300 p-2 border"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="flex items-center text-sm font-medium text-gray-700">
+                      <Phone className="w-4 h-4" /> Phone
+                    </label>
+                    <input
+                      type="text"
+                      name="phone"
+                      value={updatedUser.phone}
+                      onChange={handleInputChange}
+                      className="mt-1 w-full rounded-md border-gray-300 p-2 border"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="flex items-center text-sm font-medium text-gray-700">
+                      <MapPin className="w-4 h-4" /> Country
+                    </label>
+                    <input
+                      type="text"
+                      name="address"
+                      value={updatedUser.address}
+                      readOnly
+                      className="mt-1 w-full rounded-md border-gray-300 p-2 border bg-gray-100"
+                    />
+                  </div>
+                </form>
+              </div>
+
+              {/* Guard Info */}
+              <div className="flex items-center space-x-4 mb-6">
+                {guardInfo.photo && (
+                  <img
+                    src={guardInfo.photo}
+                    alt={guardInfo.guardName}
+                    className="w-16 h-16 rounded-lg object-cover"
+                  />
+                )}
+
+                <div>
+                  <h3 className="font-medium text-gray-900">
+                    {guardInfo.guardName}
+                  </h3>
+                  <p className="text-gray-600 mt-1">
+                    {userCurrency}{" "}
+                    {Number(convertedPricePerDay).toLocaleString()} / day
+                  </p>
                 </div>
               </div>
 
-              {/* Booking Summary Card */}
-              <div className="bg-white rounded-xl shadow-sm p-6">
-                <div className="flex items-center mb-4">
-                  <Shield className="w-6 h-6 text-blue-600 mr-3" />
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    Booking Summary
-                  </h2>
+              {/* Dates */}
+              <div className="flex items-center space-x-4 mt-4">
+                <Calendar className="w-5 h-5 text-gray-400" />
+                <div>
+                  <p className="text-gray-900">
+                    {formatDate(guardInfo.startDate)} -{" "}
+                    {formatDate(guardInfo.endDate)}
+                  </p>
+                  <p className="text-gray-600">
+                    {days} {days === 1 ? "day" : "days"}
+                  </p>
                 </div>
+              </div>
 
-                <div className="space-y-4">
-                  {/* Booking ID */}
-                  <div className="flex justify-between items-center py-3 border-b border-gray-100">
-                    <span className="text-gray-600">Booking ID</span>
-                    <span className="font-medium text-gray-900">
-                      {bookingDetails.bookingId}
-                    </span>
-                  </div>
-
-                  {/* Service Description */}
-                  <div className="py-3 border-b border-gray-100">
-                    <span className="text-gray-600 block mb-2">
-                      Service Description
-                    </span>
-                    <span className="text-gray-900">
-                      {bookingDetails.serviceDescription}
-                    </span>
-                  </div>
-
-                  {/* Dates */}
-                  <div className="py-3 border-b border-gray-100">
-                    <div className="flex items-center mb-3">
-                      <Calendar className="w-4 h-4 text-gray-500 mr-2" />
-                      <span className="text-gray-600">Service Period</span>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">
-                          Start Date
-                        </span>
-                        <span className="text-sm font-medium text-gray-900">
-                          {formatDate(bookingDetails.startDate)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-500">End Date</span>
-                        <span className="text-sm font-medium text-gray-900">
-                          {formatDate(bookingDetails.endDate)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between pt-2 border-t border-gray-100">
-                        <span className="text-sm text-gray-500">Duration</span>
-                        <span className="text-sm font-medium text-gray-900">
-                          {days} {days === 1 ? "day" : "days"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+              {/* Service Type */}
+              <div className="flex items-center space-x-4 mt-4">
+                <Users className="w-5 h-5 text-gray-400" />
+                <div>
+                  <p className="text-gray-900">{guardInfo.serviceType}</p>
+                  <p className="text-gray-600">
+                    {personnelCount}{" "}
+                    {personnelCount === 1 ? "person" : "people"}
+                  </p>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Right Column - Price Summary */}
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-xl shadow-sm p-6 sticky top-8">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Price Summary
-                </h3>
+          {/* RIGHT SIDEBAR */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-2xl shadow-sm p-6 sticky top-8">
+              <h3 className="text-lg font-semibold mb-4">Price Summary</h3>
 
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">
-                      {servicePrice} × {days} {days === 1 ? "day" : "days"}
-                    </span>
-                    <span className="text-gray-900">
-                      ${bookingDetails.total}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between py-2">
-                    <span className="text-gray-600">Taxes & Fees</span>
-                    <span className="font-medium">${tax.toFixed(2)}</span>
-                  </div>
-
-                  <div className="border-t border-gray-200 pt-3">
-                    <div className="flex justify-between">
-                      <span className="text-lg font-semibold text-gray-900">
-                        Total
-                      </span>
-                      <span className="text-lg font-semibold text-gray-900">
-                        ${total.toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
+              <div className="text-sm space-y-2">
+                <div className="flex justify-between">
+                  <span>
+                    {userCurrency}{" "}
+                    {Number(convertedPricePerDay).toLocaleString()} × {days} ×{" "}
+                    {personnelCount}
+                  </span>
+                  <span>
+                    {userCurrency} {Number(calculatedSubtotal).toLocaleString()}
+                  </span>
                 </div>
 
-                <div className="mt-6 space-y-4">
-                  {!isReserved ? (
-                    <button
-                      onClick={handleProceedToBooking}
-                      disabled={isProcessing}
-                      className={`w-full py-3 text-white rounded-lg font-medium transition-all ${
-                        isProcessing
-                          ? "bg-blue-400 cursor-not-allowed"
-                          : "bg-blue-700 hover:bg-blue-800"
-                      }`}
-                    >
-                      {isProcessing ? "Processing..." : "Confirm Reservation"}
-                    </button>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                        <p className="text-green-800 text-sm flex items-center">
-                          <Check className="w-4 h-4 mr-2" />
-                          Security service reserved successfully! Please proceed
-                          with payment to confirm your booking.
-                        </p>
-                      </div>
-                      <button
-                        onClick={handleProceedToPayment}
-                        disabled={isProcessing}
-                        className="w-full py-3 bg-blue-700 text-white rounded-lg hover:bg-blue-800 transition-colors font-medium flex items-center justify-center"
-                      >
-                        {isProcessing
-                          ? "Processing..."
-                          : `Pay $${total.toFixed(2)}`}
-                        {!isProcessing && (
-                          <CreditCard className="ml-2 w-5 h-5" />
-                        )}
-                      </button>
-                    </div>
-                  )}
+                <div className="flex justify-between">
+                  <span>VAT ({vatRate}%)</span>
+                  <span>
+                    {userCurrency} {Number(vatAmount).toLocaleString()}
+                  </span>
                 </div>
+
+                <div className="border-t pt-3 mt-3 font-semibold text-lg flex justify-between">
+                  <span>Total</span>
+                  <span>
+                    {userCurrency} {Number(finalTotal).toLocaleString()}
+                  </span>
+                </div>
+
+                <button
+                  onClick={handleReserveConfirm}
+                  disabled={isProcessing || isLoading}
+                  className={`w-full mt-6 py-3 text-white rounded-lg font-medium ${
+                    isProcessing || isLoading
+                      ? "bg-blue-400 cursor-not-allowed"
+                      : "bg-blue-700 hover:bg-blue-800"
+                  }`}
+                >
+                  {isProcessing || isLoading ? "Processing..." : "Continue"}
+                </button>
               </div>
             </div>
           </div>
         </div>
       </div>
-
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-      />
     </div>
   );
 }

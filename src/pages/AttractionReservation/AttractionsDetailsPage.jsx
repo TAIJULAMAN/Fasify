@@ -5,6 +5,7 @@ import {
   useGetAttractionAppealsQuery,
   useGetAttractionAppealByIdQuery,
 } from "../../redux/api/attraction/attractionApi";
+import { currencyByCountry } from "../../components/curenci";
 
 export default function AttractionsDetailsPage() {
   const location = useLocation();
@@ -15,6 +16,58 @@ export default function AttractionsDetailsPage() {
   const page = parseInt(params.get("page") || "1", 10);
   const limit = parseInt(params.get("limit") || "10", 10);
   const [inputTerm, setInputTerm] = useState(searchTerm);
+
+  // Currency detection states
+  const [userCurrency, setUserCurrency] = useState("USD");
+  const [userCountry, setUserCountry] = useState(null);
+  const [conversionRate, setConversionRate] = useState(1);
+
+  // Currency detection and conversion
+  React.useEffect(() => {
+    const detect = async () => {
+      try {
+        const res = await fetch("https://api.country.is/");
+        const data = await res.json();
+        const country = data.country;
+
+        if (country && currencyByCountry[country]) {
+          setUserCountry(country);
+          const userCurr = currencyByCountry[country].code;
+          setUserCurrency(userCurr);
+
+          // Fetch conversion: USD → user's currency
+          let rate = 1;
+
+          if ("USD" !== userCurr) {
+            const rateRes = await fetch(
+              "https://open.er-api.com/v6/latest/USD"
+            );
+            const rateData = await rateRes.json();
+
+            if (rateData?.rates) {
+              const usdToUser = rateData.rates[userCurr] || 1;
+              rate = usdToUser;
+            }
+          } else {
+          }
+
+          setConversionRate(rate);
+        } else {
+          setUserCurrency("USD");
+          setConversionRate(1);
+        }
+      } catch (e) {
+        console.error(
+          "AttractionsDetailsPage: Detection or conversion failed:",
+          e
+        );
+        setUserCurrency("USD");
+        setConversionRate(1);
+      }
+    };
+
+    detect();
+  }, []);
 
   const { data, isLoading, error } = useGetAttractionAppealsQuery(
     { searchTerm, page, limit },
@@ -35,11 +88,77 @@ export default function AttractionsDetailsPage() {
   const events = appeals.map((appeal) => {
     const image = appeal.attractionImages?.[0] || "/placeholder.svg";
     const name = appeal.attractionDestinationType || "Attraction";
-    const location = `${appeal.attractionCity || ""}${appeal.attractionCity && appeal.attractionCountry ? ", " : ""}${appeal.attractionCountry || ""}`;
-    const price = typeof appeal.attractionAdultPrice !== 'undefined' ? `$${appeal.attractionAdultPrice}` : "$0";
+    const location = `${appeal.attractionCity || ""}${
+      appeal.attractionCity && appeal.attractionCountry ? ", " : ""
+    }${appeal.attractionCountry || ""}`;
+
+    // Currency conversion logic
+    const basePrice =
+      Number(appeal.originalAdultPrice) ||
+      Number(appeal.attractionAdultPrice) ||
+      0;
+    const baseCurrency = appeal.currency || "USD";
+
+    // Calculate converted price
+    let convertedPrice = basePrice;
+    let displayCurrency = userCurrency || baseCurrency;
+
+    // Convert from base currency to user currency
+    if (userCurrency && baseCurrency !== userCurrency && conversionRate) {
+      // If base currency is NGN and user wants USD
+      if (baseCurrency === "NGN" && userCurrency === "USD") {
+        // Convert NGN to USD (assuming 1 USD = 1515 NGN)
+        const ngnToUsdRate = 1 / 1515;
+        convertedPrice = Number(basePrice * ngnToUsdRate);
+      }
+      // If base currency is USD and user has different currency
+      else if (baseCurrency === "USD") {
+        convertedPrice = Number(basePrice * conversionRate);
+      }
+      // If base currency is not USD but user wants USD
+      else if (userCurrency === "USD") {
+        convertedPrice = Number(basePrice / conversionRate);
+      }
+      // For other conversions, use the provided conversion rate
+      else {
+        convertedPrice = Number(basePrice * conversionRate);
+      }
+    }
+
+    // Handle zero-decimal currencies like JPY
+    const isZeroDecimalCurrency = ["JPY", "KRW", "VND"].includes(
+      displayCurrency
+    );
+    const formattedPrice = isZeroDecimalCurrency
+      ? Math.round(convertedPrice).toLocaleString()
+      : convertedPrice.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+
+    const price = displayCurrency
+      ? `${displayCurrency} ${formattedPrice}`
+      : formattedPrice;
+
     const rating = parseFloat(appeal.attractionRating) || 0;
     const id = appeal.id;
-    return { id, name, location, image, price, rating };
+
+    return {
+      id,
+      name,
+      location,
+      image,
+      price,
+      rating,
+      displayCurrency,
+
+      // Add conversion props for EventCard
+      userCurrency,
+      userCountry,
+      conversionRate,
+      basePrice,
+      convertedPrice: Number(convertedPrice),
+    };
   });
 
   const total = meta?.total || 0;
@@ -103,6 +222,21 @@ export default function AttractionsDetailsPage() {
   // Single appeal details view
   if (appealId && singleData?.data) {
     const a = singleData.data;
+
+    // Calculate converted prices for single attraction
+    const adultBasePrice = Number(a.attractionAdultPrice) || 0;
+    const childBasePrice = Number(a.attractionChildPrice) || 0;
+    const baseCurrency = a.displayCurrency || "USD";
+
+    let convertedAdultPrice = adultBasePrice;
+    let convertedChildPrice = childBasePrice;
+    let displayCurrency = userCurrency || baseCurrency;
+
+    if (userCurrency && baseCurrency !== userCurrency && conversionRate) {
+      convertedAdultPrice = Number(adultBasePrice * conversionRate).toFixed(2);
+      convertedChildPrice = Number(childBasePrice * conversionRate).toFixed(2);
+    }
+
     return (
       <div className="min-h-screen py-10 container mx-auto">
         <div className="bg-white p-6 rounded-2xl shadow-lg w-full">
@@ -141,10 +275,12 @@ export default function AttractionsDetailsPage() {
                   <strong>Rating:</strong> {a.attractionRating}
                 </p>
                 <p>
-                  <strong>Adult Price:</strong> ${a.attractionAdultPrice}
+                  <strong>Adult Price:</strong> {displayCurrency}{" "}
+                  {Number(convertedAdultPrice).toLocaleString()}
                 </p>
                 <p>
-                  <strong>Child Price:</strong> ${a.attractionChildPrice}
+                  <strong>Child Price:</strong> {displayCurrency}{" "}
+                  {Number(convertedChildPrice).toLocaleString()}
                 </p>
                 <p>
                   <strong>Status:</strong> {a.isBooked}
@@ -223,7 +359,15 @@ export default function AttractionsDetailsPage() {
             No attractions found.
           </div>
         ) : (
-          events.map((event, index) => <EventCard key={index} event={event} />)
+          events.map((event, index) => (
+            <EventCard
+              key={index}
+              event={event}
+              userCurrency={userCurrency}
+              userCountry={userCountry}
+              conversionRate={conversionRate}
+            />
+          ))
         )}
       </div>
       {/* Pagination */}

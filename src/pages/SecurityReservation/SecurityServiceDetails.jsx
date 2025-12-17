@@ -1,282 +1,523 @@
-import React, { useMemo, useState, useEffect } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+
 import {
   MapPin,
   Star,
+  ExternalLink,
+  Phone,
+  Mail,
   Shield,
-  Clock,
-  Users,
-  CheckCircle,
+  Calendar,
+  Info,
+  ArrowLeft,
 } from "lucide-react";
 import SecurityBookingForm from "./SecurityBookingForm";
-import { Spin } from "antd";
-import {
-  useGetSecurityProtocolByIdQuery,
-  useGetAllSecurityProtocolsQuery,
-} from "../../redux/api/security/securityApi";
+import { useParams, useLocation } from "react-router-dom";
+import { useGetSecurityProtocolsQuery } from "../../redux/api/security/getAllSecurityApi";
 import ImageGallery from "./ImageGallery";
+import { useNavigate } from "react-router-dom";
+import { currencyByCountry } from "../../components/curenci";
 
 export default function SecurityServiceDetails() {
-  const { id } = useParams();
+  const [userCurrency, setUserCurrency] = useState("USD");
+  const [userCountry, setUserCountry] = useState(null);
+  const [conversionRate, setConversionRate] = useState(1);
+
   const navigate = useNavigate();
-  const locationRouter = useLocation();
-  const sp = new URLSearchParams(locationRouter.search);
-  const fromDateQuery = sp.get("fromDate") || "";
-  const toDateQuery = sp.get("toDate") || "";
-  const selectedGuardFromState = locationRouter.state?.selectedGuard || null;
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const { data, isLoading, isFetching, isError } =
-    useGetSecurityProtocolByIdQuery(id, {
-      refetchOnMountOrArgChange: true,
-    });
-  console.log("asdfads", data);
+  const { id } = useParams();
+  const location = useLocation();
 
-  const guard = useMemo(() => data?.data || data, [data]);
-  const service = useMemo(() => {
-    const imageList =
-      Array.isArray(guard?.securityImages) && guard.securityImages.length > 0
-        ? guard.securityImages
-        : [guard?.businessLogo].filter(Boolean);
-    const images =
-      imageList.length > 0 ? imageList : ["/SecurityProviders/1.png"];
-    return {
-      id: guard?.id || guard?._id || id,
-      name:
-        guard?.securityGuardName ||
-        guard?.securityName ||
-        guard?.securityBusinessName ||
-        "",
-      location: [guard?.securityCity, guard?.securityCountry]
-        .filter(Boolean)
-        .join(", "),
-      images,
-      price: guard?.securityPriceDay || 0,
-      rating: Number(guard?.securityRating) || 0,
-      description:
-        guard?.securityGuardDescription ||
-        guard?.securityProtocolDescription ||
-        "",
-      services: Array.isArray(guard?.securityServicesOffered)
-        ? guard.securityServicesOffered
-        : [],
-      experience: guard?.experience != null ? `${guard.experience}+ years` : "",
-      languages: Array.isArray(guard?.languages) ? guard.languages : [],
-      availability: guard?.availability || "",
-      certification: guard?.certification || "",
-    };
-  }, [guard, id]);
+  const { data } = useGetSecurityProtocolsQuery();
 
-  const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % service.images.length);
-  };
+  // === RECEIVE DATA FROM SECURITYCARD ===
+  const stateList = location.state?.security || [];
 
-  const prevImage = () => {
-    setCurrentImageIndex(
-      (prev) => (prev - 1 + service.images.length) % service.images.length
+  // === FILTER SPECIFIC BUSINESS ===
+  const business = React.useMemo(() => {
+    if (!Array.isArray(stateList)) return null;
+    return stateList.find((item) => String(item?.id) === String(id)) || null;
+  }, [stateList, id]);
+
+  // Get available guards (only AVAILABLE ones)
+  const availableGuards = React.useMemo(() => {
+    if (!business || !Array.isArray(business.security_Guard)) return [];
+    return business.security_Guard.filter(
+      (guard) => String(guard?.isBooked).toUpperCase() === "AVAILABLE"
     );
-  };
+  }, [business]);
 
-  const goToImage = (index) => {
-    setCurrentImageIndex(index);
-  };
+  const cancelationPolicy =
+    business?.securityCancelationPolicy || business?.securityCancelationPolicy;
 
-  // Reset image index when navigating to a new guard id
+  // === ADDRESS FORMAT ===
+  const guardAddressParts = [
+    availableGuards[0]?.securityAddress || business?.securityAddress,
+    availableGuards[0]?.securityPostalCode || business?.securityPostalCode,
+    availableGuards[0]?.securityCity || business?.securityCity,
+    availableGuards[0]?.securityCountry || business?.securityCountry,
+  ].filter(Boolean);
+
+  const fullAddress = guardAddressParts.join(", ");
+  const encodedQuery = encodeURIComponent(fullAddress);
+
+  // Currency detection and conversion
+  const basePrice = business?.averagePrice || 0;
+  const baseCurrency =
+    business?.securityurrency || business?.displayCurrency || "USD";
+
   useEffect(() => {
-    setCurrentImageIndex(0);
-  }, [id]);
+    const detect = async () => {
+      try {
+        const res = await fetch("https://api.country.is/");
+        const data = await res.json();
+        const country = data.country;
 
-  if (!selectedGuardFromState && (isLoading || isFetching)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Spin size="large" />
-      </div>
-    );
-  }
+        if (country && currencyByCountry[country]) {
+          setUserCountry(country);
+          const userCurr = currencyByCountry[country].code;
+          setUserCurrency(userCurr);
 
-  // If fetching failed or no guard returned, it's likely a protocol ID.
-  if (!selectedGuardFromState && (isError || !guard)) {
-    navigate(`/security-protocol-details/${id}`);
-    return null;
-  }
+          // Fetch conversion: baseCurrency → user's currency
+          let rate = 1;
 
-  // If a guard was selected from the grid, show its details + booking form
-  if (selectedGuardFromState) {
-    const g = selectedGuardFromState;
-    const images = Array.isArray(g?.securityImages) && g.securityImages.length > 0
-      ? g.securityImages
-      : ["/SecurityProviders/1.png"];
-    
-    // Prepare images for the gallery
-    const galleryImages = [
-      g?.businessLogo ? g.businessLogo : null,
-      ...(Array.isArray(images) ? images : [])
-    ].filter(Boolean);
-    return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="container mx-auto px-4">
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <div className="md:flex">
-              {/* Left: Guard Details */}
-              <div className="p-6 md:p-8 md:w-2/3">
-                <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-3xl font-bold text-gray-900">{g?.securityGuardName}</h1>
-                </div>
-                  <div className="flex items-center">
-                    {[1,2,3,4,5].map((s) => (
-                      <Star key={s} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                    ))}
-                  </div>
-                <div className="flex items-center mt-2 text-gray-600 mb-6">
-                  <MapPin className="w-5 h-5 mr-1 text-sky-600" />
-                  <span>{[g?.securityCity, g?.securityCountry].filter(Boolean).join(', ')}</span>
-                </div>
-                {/* Image Gallery */}
-                <div className="mb-6">
-                  <ImageGallery 
-                    images={galleryImages} 
-                    alt={g?.securityGuardName || 'Security Guard'} 
+          if (baseCurrency !== userCurr) {
+            const rateRes = await fetch(
+              "https://open.er-api.com/v6/latest/USD"
+            );
+            const rateData = await rateRes.json();
+
+            if (rateData?.rates) {
+              const baseToUSD =
+                baseCurrency === "USD" ? 1 : 1 / rateData.rates[baseCurrency];
+              const usdToUser = rateData.rates[userCurr] || 1;
+              rate = baseToUSD * usdToUser;
+            }
+          } else {
+          }
+
+          setConversionRate(rate);
+        } else {
+          setUserCurrency("USD");
+          setConversionRate(1);
+        }
+      } catch (e) {
+        console.error("Detection or conversion failed:", e);
+        setUserCurrency("USD");
+        setConversionRate(1);
+      }
+    };
+
+    detect();
+  }, [baseCurrency]);
+
+  // Calculate converted price
+  const convertedPrice = Number(basePrice * conversionRate).toFixed(2);
+
+  const displayRating =
+    Number(
+      business?.averageRating !== undefined
+        ? business.averageRating
+        : business?.securityRating
+    ) || 0;
+  const reviewCount =
+    business?.averageReviewCount !== undefined
+      ? business.averageReviewCount
+      : business?.securityReviewCount;
+
+  const openFullMap = () => {
+    if (fullAddress) {
+      const url = `https://www.google.com/maps/search/${encodedQuery}`;
+      window.open(url, "_blank");
+    } else {
+      window.open("https://www.google.com/maps", "_blank");
+    }
+  };
+
+  return (
+    <div>
+      <div className="min-h-screen bg-gray-50">
+        <main className="container mx-auto px-5 md:px-0 ">
+          {/* Header Info */}
+          <div className="py-6 mt-6 mb-4">
+            <div
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <ArrowLeft className="w-6 h-6 text-gray-600" />
+              <span className="ml-2 text-gray-600">Back to Security</span>
+            </div>
+
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+              {business?.securityGuardName || business?.securityBusinessName}
+            </h1>
+
+            <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+              <MapPin className="w-4 h-4 text-gray-600" />
+              <span className="font-medium">Location:</span>
+              <span>
+                {[
+                  availableGuards[0]?.securityCity || business?.securityCity,
+                  availableGuards[0]?.securityCountry ||
+                    business?.securityCountry,
+                ]
+                  .filter(Boolean)
+                  .join(", ") || "Not provided"}
+              </span>
+            </div>
+
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-gray-600">
+              <span className="inline-flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((star, i) => (
+                  <Star
+                    key={star}
+                    className={`w-4 h-4 ${
+                      i < Math.round(displayRating)
+                        ? "fill-yellow-400 text-yellow-400"
+                        : "text-gray-300"
+                    }`}
                   />
-                </div>
-                <div className="space-y-4">
-                  <h2 className="text-xl font-semibold">About</h2>
-                  <p className="text-gray-700">{g?.securityGuardDescription}</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center">
-                      <Shield className="w-5 h-5 text-sky-600 mr-2" />
-                      <div>
-                        <p className="text-sm text-gray-500">Experience</p>
-                        <p className="font-medium">{g?.experience} years</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center">
-                      <Clock className="w-5 h-5 text-sky-600 mr-2" />
-                      <div>
-                        <p className="text-sm text-gray-500">Availability</p>
-                        <p className="font-medium">{g?.availability}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center">
-                      <Users className="w-5 h-5 text-sky-600 mr-2" />
-                      <div>
-                        <p className="text-sm text-gray-500">Languages</p>
-                        <p className="font-medium">{(Array.isArray(g?.languages)?g.languages:[]).join(', ')}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center">
-                      <CheckCircle className="w-5 h-5 text-sky-600 mr-2" />
-                      <div>
-                        <p className="text-sm text-gray-500">Certification</p>
-                        <p className="font-medium">{g?.certification}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              {/* Right: Booking Form */}
-              <div className="p-6 md:p-8 md:w-1/3 bg-gray-50 border-l border-gray-200">
-                <SecurityBookingForm
-                  guardId={g?.id || g?._id}
-                  guardName={g?.securityGuardName}
-                  pricePerDay={Number(g?.securityPriceDay) || 0}
-                  photo={(Array.isArray(g?.securityImages) && g.securityImages[0]) || undefined}
-                  fromDate={fromDateQuery}
-                  toDate={toDateQuery}
-                />
-              </div>
+                ))}
+                <span>
+                  {displayRating.toFixed(1)}
+                  {reviewCount ? ` (${reviewCount})` : ""}
+                </span>
+              </span>
             </div>
           </div>
-        </div>
-      </div>
-    );
-  }
 
-  // Default: show only Available Guards grid
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="container mx-auto px-4">
-        <ProtocolGuardsSection protocolId={id} fromDate={fromDateQuery} toDate={toDateQuery} />
-      </div>
-    </div>
-  );
-}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-5">
+            <div className="lg:col-span-2">
+              {/* Image Gallery */}
+              {(() => {
+                if (!business) return null;
 
-function ProtocolGuardsSection({ protocolId, fromDate, toDate }) {
-  const { data: protocolsResp, isFetching } = useGetAllSecurityProtocolsQuery();
-  const protocols = React.useMemo(
-    () =>
-      protocolsResp?.data?.data || protocolsResp?.data || protocolsResp || [],
-    [protocolsResp]
-  );
-  const current = React.useMemo(
-    () =>
-      (Array.isArray(protocols) ? protocols : []).find(
-        (p) => (p?.id || p?._id) === protocolId
-      ),
-    [protocols, protocolId]
-  );
-  const guards = Array.isArray(current?.security_Guard)
-    ? current.security_Guard
-    : [];
-  const navigate = useNavigate();
+                const businessImages = Array.isArray(business.securityImages)
+                  ? business.securityImages
+                  : [];
 
-  const handleGuardClick = (guard) => {
-    navigate(`/security-service-details/${protocolId}`, {
-      state: { selectedGuard: guard },
-    });
-  };
+                const guardImages = Array.isArray(business.security_Guard)
+                  ? business.security_Guard.flatMap((g) =>
+                      Array.isArray(g.securityImages) ? g.securityImages : []
+                    )
+                  : [];
 
-  return (
-    <div className="mt-8">
-      <h2 className="text-xl font-semibold text-gray-900 mb-4">
-        Available Guards
-      </h2>
-      {isFetching ? (
-        <div className="flex items-center justify-center py-6">
-          <Spin />
-        </div>
-      ) : guards.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {guards.map((g) => (
-            <button
-              key={g?.id || g?._id}
-              onClick={() => handleGuardClick(g)}
-              className="text-left bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition"
-            >
-              <img
-                src={
-                  (Array.isArray(g?.securityImages) && g.securityImages[0]) ||
-                  "/placeholder.svg"
-                }
-                alt={g?.securityGuardName}
-                className="w-full h-36 object-cover"
-              />
-              <div className="p-4">
-                <div className="font-semibold text-gray-900">
-                  {g?.securityGuardName}
+                const images = [
+                  business.businessLogo,
+                  business.user?.profileImage,
+                  ...businessImages,
+                  ...guardImages,
+                ].filter(Boolean);
+
+                return (
+                  <ImageGallery
+                    images={images}
+                    alt={
+                      business.securityBusinessName ||
+                      business.securityName ||
+                      "Security Service"
+                    }
+                  />
+                );
+              })()}
+
+              {/* Smart Info Card */}
+              <div className="mt-6 rounded-2xl bg-gradient-to-br from-white/90 to-gray-50 backdrop-blur-md border border-gray-200 shadow-[0_6px_20px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-all duration-300 p-6 hover:-translate-y-1">
+                {/* BADGE SECTION */}
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-[11px] font-medium text-gray-700">
+                      <Shield className="w-3.5 h-3.5 text-gray-600" />
+                      {availableGuards[0].category}
+                    </span>
+
+                    <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-medium text-blue-700">
+                      {userCurrency} {Number(convertedPrice).toLocaleString()}
+                      /day
+                    </span>
+                  </div>
+
+                  {/* Rating */}
+                  <div className="flex items-center gap-1 rounded-xl bg-gradient-to-r from-yellow-50 to-yellow-100 px-3 py-1 shadow-sm border border-yellow-200">
+                    <span className="inline-flex items-center gap-0.5">
+                      {[1, 2, 3, 4, 5].map((star, i) => (
+                        <Star
+                          key={star}
+                          className={`w-3.5 h-3.5 ${
+                            i < Math.round(displayRating)
+                              ? "fill-yellow-400 text-yellow-400"
+                              : "text-gray-300"
+                          }`}
+                        />
+                      ))}
+                    </span>
+                    <span className="text-xs font-semibold text-yellow-800">
+                      {displayRating.toFixed(1)}
+                      {business?.securityReviewCount
+                        ? ` (${business.securityReviewCount})`
+                        : ""}
+                    </span>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-600">
-                  {[g?.securityCity, g?.securityCountry]
-                    .filter(Boolean)
-                    .join(", ")}
+
+                {/* Tagline */}
+
+                <div className="bg-white/70 border border-gray-100 rounded-xl shadow-sm p-3 mb-3">
+                  <h3 className="text-base font-semibold text-gray-900">
+                    {availableGuards[0].securityGuardDescription}
+                  </h3>
                 </div>
-                <div className="mt-1 text-sm">
-                  <span className="font-medium">
-                    ${g?.securityPriceDay || 0}
-                  </span>{" "}
-                  / day
+
+                {/* Address + Contact */}
+                <div className="flex flex-col sm:flex-row justify-between gap-3 mb-4">
+                  <div className="flex items-start gap-2 text-sm text-gray-700 bg-gray-50 border border-gray-100 rounded-lg p-2.5 shadow-sm flex-1">
+                    <MapPin className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    <span className="truncate">{fullAddress}</span>
+                  </div>
+
+                  {(business?.securityPhone || business?.securityEmail) && (
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 text-sm text-gray-700 bg-gray-50 border border-gray-100 rounded-lg p-2.5 shadow-sm flex-1">
+                      {business?.securityPhone && (
+                        <span className="inline-flex items-center gap-1">
+                          <Phone className="w-4 h-4 text-gray-600" />
+                          {business.securityPhone}
+                        </span>
+                      )}
+
+                      {business?.securityEmail && (
+                        <span className="inline-flex items-center gap-1">
+                          <Mail className="w-4 h-4 text-gray-600" />
+                          {business.securityEmail}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="mt-1 text-xs text-gray-500">
-                  {g?.availability}
+
+                {/* Booking condition */}
+                {(business?.securityBookingCondition ||
+                  business?.securityCancelationPolicy) && (
+                  <div className="bg-white/70 border border-gray-100 rounded-xl p-3 shadow-sm mb-4">
+                    {business?.securityCancelationPolicy && (
+                      <div className="flex items-start gap-2">
+                        <Info className="w-3.5 h-3.5 mt-0.5 text-rose-600" />
+                        <span className="text-sm text-gray-700 leading-snug">
+                          {business.securityCancelationPolicy}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* SERVICES */}
+                {Array.isArray(availableGuards[0]?.securityServicesOffered) &&
+                  availableGuards[0].securityServicesOffered.length > 0 && (
+                    <div className="bg-white/80 border border-gray-100 rounded-xl p-3 shadow-sm mb-4">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                        Services Offered
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {availableGuards[0].securityServicesOffered.map(
+                          (service, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center px-2.5 py-1 rounded-full bg-blue-50 text-[11px] font-medium text-blue-700 border border-blue-100"
+                            >
+                              {service}
+                            </span>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Description */}
+                {(availableGuards[0]?.securityGuardDescription ||
+                  business?.securityProtocolDescription) && (
+                  <div className="bg-gradient-to-br from-gray-50 to-white border border-gray-100 rounded-xl p-3 shadow-inner mb-4">
+                    <p className="text-sm text-gray-700 leading-relaxed">
+                      {availableGuards[0]?.securityGuardDescription ||
+                        business.securityProtocolDescription}
+                    </p>
+                  </div>
+                )}
+
+                {/* Additional Info */}
+                <div className="bg-white/80 border border-gray-100 rounded-xl p-3 shadow-sm space-y-3">
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    Additional Information
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-gray-700">
+                    {typeof availableGuards[0]?.experience === "number" && (
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-gray-600" />
+                        <span>
+                          Experience:{" "}
+                          <span className="font-semibold">
+                            {availableGuards[0].experience} years
+                          </span>
+                        </span>
+                      </div>
+                    )}
+
+                    {availableGuards[0]?.availability && (
+                      <div>
+                        <span className="font-semibold">Availability: </span>
+                        <span>{availableGuards[0].availability}</span>
+                      </div>
+                    )}
+
+                    {Array.isArray(availableGuards[0]?.languages) &&
+                      availableGuards[0].languages.length > 0 && (
+                        <div>
+                          <span className="font-semibold">Languages: </span>
+                          <span>{availableGuards[0].languages.join(", ")}</span>
+                        </div>
+                      )}
+
+                    {availableGuards[0]?.certification && (
+                      <div>
+                        <span className="font-semibold">Certification: </span>
+                        <span>{availableGuards[0].certification}</span>
+                      </div>
+                    )}
+
+                    {Array.isArray(
+                      availableGuards[0]?.securityBookingAbleDays
+                    ) &&
+                      availableGuards[0].securityBookingAbleDays.length > 0 && (
+                        <div className="sm:col-span-2">
+                          <span className="font-semibold">Booking Days: </span>
+                          <span>
+                            {availableGuards[0].securityBookingAbleDays.join(
+                              ", "
+                            )}
+                          </span>
+                        </div>
+                      )}
+
+                    {availableGuards[0]?.category && (
+                      <div>
+                        <span className="font-semibold">Category: </span>
+                        <span>{availableGuards[0].category}</span>
+                      </div>
+                    )}
+
+                    {cancelationPolicy && (
+                      <div>
+                        <span className="font-semibold">
+                          Cancelation Policy:
+                        </span>
+                        <span className="text-gray-600">
+                          {cancelationPolicy}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-4">
-          No guards available for this protocol.
-        </div>
-      )}
+            </div>
+
+            {/* Right Column */}
+            <div className="lg:sticky lg:top-4 space-y-4">
+              {/* MAP */}
+              <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                <div className="relative h-[200px]">
+                  <iframe
+                    src={`https://maps.google.com/maps?q=${encodedQuery}&t=&z=13&ie=UTF8&iwloc=&output=embed`}
+                    width="100%"
+                    height="100%"
+                    className="absolute inset-0"
+                    style={{ border: 0 }}
+                    allowFullScreen=""
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                    title="Security Location Map"
+                  ></iframe>
+
+                  {/* Small Overlay */}
+                  <div className="absolute top-2 left-2 right-2 bg-white/80 backdrop-blur-md rounded-xl shadow-md p-2">
+                    <div className="flex items-start gap-2">
+                      <MapPin className="w-5 h-5 text-red-500 mt-0.5" />
+                      <div className="min-w-0">
+                        {/* <h5 className="font-semibold text-xs text-gray-900 truncate">
+                          {availableGuards[0]?.securityGuardName ||
+                            business?.securityGuardName ||
+                            business?.securityBusinessName ||
+                            business?.security?.securityName ||
+                            "Security Service"}
+                        </h5> */}
+
+                        {(availableGuards[0]?.securityCity ||
+                          availableGuards[0]?.securityCountry ||
+                          business?.securityCity ||
+                          business?.securityCountry) && (
+                          <p className="text-[11px] text-gray-600 truncate">
+                            {[
+                              availableGuards[0]?.securityCity ||
+                                business?.securityCity,
+                              availableGuards[0]?.securityCountry ||
+                                business?.securityCountry,
+                            ]
+                              .filter(Boolean)
+                              .join(", ")}
+                          </p>
+                        )}
+
+                        <div className="mt-1 flex items-center gap-2">
+                          {/* Rating */}
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-yellow-50 px-1.5 py-0.5 text-[10px] text-yellow-800">
+                            {[1, 2, 3, 4, 5].map((star, i) => (
+                              <Star
+                                key={star}
+                                className={`w-2.5 h-2.5 ${
+                                  i < Math.round(displayRating)
+                                    ? "fill-yellow-400 text-yellow-400"
+                                    : "text-gray-300"
+                                }`}
+                              />
+                            ))}
+                            {displayRating.toFixed(1)}
+                          </span>
+
+                          {/* Price */}
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700">
+                            {userCurrency}{" "}
+                            {Number(convertedPrice).toLocaleString()}/day
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Full Map Button */}
+                <div className="bg-white border-t border-gray-100 p-2">
+                  <button
+                    onClick={openFullMap}
+                    className="flex items-center justify-center w-full text-blue-600 hover:text-blue-700 text-sm font-medium transition-colors py-1"
+                  >
+                    <ExternalLink className="w-4 h-4 mr-1" />
+                    View in full map
+                  </button>
+                </div>
+              </div>
+
+              {/* Booking Form */}
+              <SecurityBookingForm
+                data={business}
+                business={business}
+                guard={availableGuards}
+                userCurrency={userCurrency}
+                userCountry={userCountry}
+                conversionRate={conversionRate}
+                convertedPrice={convertedPrice}
+                policy={[{ securityCancelationPolicy: cancelationPolicy }]}
+              />
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

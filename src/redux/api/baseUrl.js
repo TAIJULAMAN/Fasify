@@ -13,6 +13,7 @@ export const baseApi = createApi({
     },
   }),
   endpoints: () => ({}),
+
   tagTypes: [
     "Security",
     "SecurityBooking",
@@ -21,5 +22,8 @@ export const baseApi = createApi({
     "security",
     "car",
     "voucher",
+    "payment",
+    "User",
+    "Con",
   ],
 });

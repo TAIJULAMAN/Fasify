@@ -1,192 +1,227 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import { DatePicker, Spin } from "antd";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useGetAllSecurityProtocolsQuery } from "../../redux/api/security/securityApi";
-import SecurityCard from "./SecurityCard";
+import React, { useState, useEffect } from "react";
+import { DatePicker } from "antd";
+import { useGetSecurityProtocolsRootQuery } from "../../redux/api/security/getAllSecurityApi";
 import dayjs from "dayjs";
+import { useLocation } from "react-router-dom";
+import SecurityCard from "./SecurityCard";
+import { currencyByCountry } from "../../components/curenci";
 
 const { RangePicker } = DatePicker;
 
 export default function SecurityDetails() {
-  const { search } = useLocation();
-  const navigate = useNavigate();
-  const sp = new URLSearchParams(search);
+  const [userCurrency, setUserCurrency] = useState("USD");
+  const [userCountry, setUserCountry] = useState(null);
+  const [conversionRate, setConversionRate] = useState(1);
 
-  const [page, setPage] = useState(1);
-  const [selectedType, setSelectedType] = useState(
-    sp.get("securityProtocolType") || sp.get("sptype") || "All"
-  );
+  const { state, search } = useLocation();
+  const params = new URLSearchParams(search || "");
 
-  console.log("securityProtocolType", useGetAllSecurityProtocolsQuery);
-  const initialFrom = sp.get("fromDate");
-  const initialTo = sp.get("toDate");
-  const [dateRange, setDateRange] = useState(
-    initialFrom && initialTo ? [dayjs(initialFrom), dayjs(initialTo)] : null
-  );
-  const initialCountry = sp.get("country") || "";
-  const initialCity = sp.get("city") || "";
-  const [locationText, setLocationText] = useState(
-    initialCountry && initialCity
-      ? `${initialCountry}, ${initialCity}`
-      : initialCity || initialCountry || ""
-  );
-  const [providers, setProviders] = useState([]);
-  const [hasMore, setHasMore] = useState(true);
-  const loader = useRef(null);
+  const locationFromParams = params.get("location") || "";
+  const countryFromParams = params.get("country") || "";
+  const cityFromParams = params.get("city") || "";
+  const securityTypeFromParams = params.get("securityType") || "";
+  const fromDateParam = params.get("fromDate");
+  const toDateParam = params.get("toDate");
 
-  const queryParams = {
-    page,
-    limit: 10,
-    ...(selectedType &&
-      selectedType !== "All" && { securityProtocolType: selectedType }),
-    ...(dateRange &&
-      dateRange[0] &&
-      dateRange[1] && {
-        fromDate: dateRange[0].format("YYYY-MM-DD"),
-        toDate: dateRange[1].format("YYYY-MM-DD"),
-      }),
-    ...(locationText &&
-      (() => {
-        const parts = locationText
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-        if (parts.length === 2) return { country: parts[0], city: parts[1] };
-        if (parts.length === 1) return { city: parts[0] };
-        return {};
-      })()),
-  };
+  const locationFromState = state?.location || "";
+  const countryFromState = state?.country || "";
+  const cityFromState = state?.city || "";
+  const securityTypeFromState = state?.securityType || "";
+  const fromDateState = state?.fromDate || null;
+  const toDateState = state?.toDate || null;
 
-  const { data, isLoading, isFetching, isError } =
-    useGetAllSecurityProtocolsQuery(queryParams, { skip: !hasMore });
+  const country = countryFromParams || countryFromState || "";
+  const city = cityFromParams || cityFromState || "";
+  const baseLocation =
+    locationFromParams ||
+    locationFromState ||
+    [country, city].filter(Boolean).join(", ");
+  const displayLocation = baseLocation;
+  const securityType = securityTypeFromParams || securityTypeFromState || "";
+  const fromDate = fromDateParam
+    ? dayjs(fromDateParam)
+    : fromDateState
+    ? dayjs(fromDateState)
+    : null;
+  const toDate = toDateParam
+    ? dayjs(toDateParam)
+    : toDateState
+    ? dayjs(toDateState)
+    : null;
 
-  // Update providers when new data is loaded
+  const { data } = useGetSecurityProtocolsRootQuery();
+
+  const securityBusinessData = Array.isArray(data?.data?.data)
+    ? data.data.data
+    : [];
+
+  // Currency detection and conversion
   useEffect(() => {
-    const payload = data?.data; // server: { meta, data: [...] }
-    const items = Array.isArray(payload?.data) ? payload.data : [];
-    if (payload) {
-      setProviders((prev) => {
-        if (page === 1) return items;
-        return [...prev, ...items];
-      });
+    const detect = async () => {
+      try {
+        const res = await fetch("https://api.country.is/");
+        const data = await res.json();
+        const country = data.country;
 
-      const total = payload?.meta?.total ?? 0;
-      const limit = payload?.meta?.limit ?? 10;
-      const totalPages = Math.ceil(total / limit) || 0;
-      if (totalPages && page >= totalPages) setHasMore(false);
-    }
-  }, [data, page]);
-
-  // Handle scroll for infinite loading
-  const handleObserver = useCallback(
-    (entries) => {
-      const target = entries[0];
-      if (target.isIntersecting && !isFetching && hasMore) {
-        setPage((prev) => prev + 1);
+        if (country && currencyByCountry[country]) {
+          setUserCountry(country);
+          const userCurr = currencyByCountry[country].code;
+          setUserCurrency(userCurr);
+          setConversionRate(1);
+        } else {
+          setUserCurrency("USD");
+          setConversionRate(1);
+        }
+      } catch (e) {
+        console.error("Detection failed:", e);
+        setUserCurrency("USD");
+        setConversionRate(1);
       }
-    },
-    [isFetching, hasMore]
-  );
-
-  // Reset pagination when filters change
-  useEffect(() => {
-    setPage(1);
-    setHasMore(true);
-    setProviders([]);
-  }, [selectedType, dateRange, locationText]);
-
-  // Set up intersection observer
-  useEffect(() => {
-    const option = {
-      root: null,
-      rootMargin: "20px",
-      threshold: 0,
     };
 
-    const observer = new IntersectionObserver(handleObserver, option);
-    if (loader.current) observer.observe(loader.current);
+    detect();
+  }, []);
+
+  // Local UI state for inputs (used directly for filtering)
+  const [locText, setLocText] = React.useState(displayLocation);
+  const [typeValue, setTypeValue] = React.useState(securityType || "All");
+  const [dateRange, setDateRange] = React.useState(
+    fromDate && toDate ? [fromDate, toDate] : null
+  );
+  const [appliedFilters, setAppliedFilters] = React.useState({
+    location: displayLocation,
+    type: securityType || "All",
+  });
+
+  // Load data from localStorage on mount if no URL params exist
+  React.useEffect(() => {
+    if (!displayLocation && !securityType && !fromDate && !toDate) {
+      try {
+        const savedData = localStorage.getItem("securitySearchData");
+        if (savedData) {
+          const data = JSON.parse(savedData);
+          setLocText(data.location || "");
+          setTypeValue(data.securityType || "All");
+          if (data.dateRange && data.dateRange[0] && data.dateRange[1]) {
+            setDateRange([dayjs(data.dateRange[0]), dayjs(data.dateRange[1])]);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading saved data in SecurityDetails:", error);
+      }
+    }
+  }, [displayLocation, securityType, fromDate, toDate]);
+
+  // Save form data to localStorage when values change
+  React.useEffect(() => {
+    if (locText || typeValue || dateRange) {
+      const dataToSave = {
+        location: locText,
+        securityType: typeValue === "All" ? "" : typeValue,
+        dateRange:
+          dateRange && dateRange[0] && dateRange[1]
+            ? [
+                dateRange[0].format("YYYY-MM-DD"),
+                dateRange[1].format("YYYY-MM-DD"),
+              ]
+            : null,
+      };
+      localStorage.setItem("securitySearchData", JSON.stringify(dataToSave));
+    }
+  }, [locText, typeValue, dateRange]);
+
+  // Clear localStorage on page reload/unmount
+  React.useEffect(() => {
+    const handleBeforeUnload = () => {
+      localStorage.removeItem("securitySearchData");
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
-      if (loader.current) observer.unobserve(loader.current);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      // Also clear on component unmount
+      localStorage.removeItem("securitySearchData");
     };
-  }, [handleObserver]);
+  }, []);
 
-  const handleSearch = () => {
-    setPage(1);
-    setHasMore(true);
-    setProviders([]);
-    const params = new URLSearchParams();
-    if (locationText) {
-      const parts = locationText
+  // Build filters from router state (location and protocol type only)
+  const filters = React.useMemo(() => {
+    // Parse current location input; format supports "Country, City" or just "City"
+    let fCountry = "";
+    let fCity = "";
+    const loc = (appliedFilters.location || "").trim();
+    if (loc) {
+      const parts = loc
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
       if (parts.length === 2) {
-        params.set("country", parts[0]);
-        params.set("city", parts[1]);
+        fCountry = parts[0];
+        fCity = parts[1];
       } else if (parts.length === 1) {
-        params.set("city", parts[0]);
+        fCity = parts[0];
       }
     }
-    if (dateRange?.[0])
-      params.set("fromDate", dateRange[0].format("YYYY-MM-DD"));
-    if (dateRange?.[1]) params.set("toDate", dateRange[1].format("YYYY-MM-DD"));
-    if (selectedType && selectedType !== "All")
-      params.set("securityProtocolType", selectedType);
-    const qs = params.toString();
-    const url = qs ? `/security-details?${qs}` : "/security-details";
-    navigate(url, { replace: false });
-  };
+    const fType = (appliedFilters.type || "").trim();
+    return {
+      country: fCountry.toLowerCase(),
+      city: fCity.toLowerCase(),
+      type: fType.toLowerCase(),
+    };
+  }, [appliedFilters]);
 
-  // Map to cards: prefer guard-level; fallback to protocol-level when no guards
-  const cardProviders = providers.flatMap((b) => {
-    const guards = Array.isArray(b?.security_Guard) ? b.security_Guard : [];
-    if (guards.length > 0) {
-      return guards.map((g) => ({
-        id: g?.id || g?._id,
-        to: `/security-service-details/${b?.id || b?._id}`,
-        image:
-          (Array.isArray(g?.securityImages) && g.securityImages[0]) ||
-          b?.businessLogo ||
-          "/placeholder.svg",
-        name:
-          g?.securityGuardName || b?.securityBusinessName || b?.securityName,
-        location:
-          [g?.securityCity, g?.securityCountry].filter(Boolean).join(", ") ||
-          b?.securityBusinessType ||
+  const filteredBusinesses = React.useMemo(() => {
+    const hasCity = Boolean(filters.city);
+    const hasCountry = Boolean(filters.country);
+    const hasType = Boolean(filters.type) && filters.type !== "all";
+    if (!hasCity && !hasCountry && !hasType) return securityBusinessData;
+
+    return securityBusinessData.filter((b) => {
+      // protocol type filter (from nested security object)
+      if (hasType) {
+        const bt = (
+          b?.security?.securityProtocolType ||
           b?.securityProtocolType ||
-          "",
-        price: g?.securityPriceDay,
-        rating: Number(g?.securityRating) || 0,
-        ownerName: b?.user?.fullName,
-        ownerAvatar: b?.user?.profileImage,
-      }));
-    }
-    // Protocol-level card when no guards
-    return [
-      {
-        id: b?.id || b?._id,
-        to: `/security-service-details/${b?.id || b?._id}`,
-        image: b?.businessLogo || "/placeholder.svg",
-        name: b?.securityBusinessName || b?.securityName,
-        location: b?.securityProtocolType || b?.securityBusinessType || "",
-        price: 0,
-        rating: 0,
-        ownerName: b?.user?.fullName,
-        ownerAvatar: b?.user?.profileImage,
-      },
-    ];
-  });
+          ""
+        ).toLowerCase();
+        if (!bt.includes(filters.type)) return false;
+      }
 
-  const handleTypeChange = (e) => {
-    setSelectedType(e.target.value);
-    setPage(1);
-    setHasMore(true);
-    setProviders([]);
-  };
+      // location filter using guard's own city/country
+      if (hasCity || hasCountry) {
+        const guard = Array.isArray(b?.security_Guard)
+          ? b.security_Guard[0]
+          : null;
+        const gc = (
+          b?.securityCountry ||
+          guard?.securityCountry ||
+          ""
+        ).toLowerCase();
+        const gi = (b?.securityCity || guard?.securityCity || "").toLowerCase();
+        if (hasCity && hasCountry)
+          return gc.includes(filters.country) && gi.includes(filters.city);
+        if (hasCity)
+          return gi.includes(filters.city) || gc.includes(filters.city);
+        if (hasCountry)
+          return gc.includes(filters.country) || gi.includes(filters.country);
+      }
 
+      return true;
+    });
+  }, [securityBusinessData, filters]);
+
+  const handleSearch = React.useCallback(() => {
+    setAppliedFilters({
+      location: locText,
+      type: typeValue,
+    });
+    // Clear localStorage after applying search
+    localStorage.removeItem("securitySearchData");
+  }, [locText, typeValue]);
   return (
     <div className="py-16 container mx-auto">
+      {/* Filter Section */}
       <div className="bg-white p-5 rounded-2xl shadow-lg w-full">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
           {/* Location Input */}
@@ -194,68 +229,59 @@ export default function SecurityDetails() {
             <input
               type="text"
               placeholder="Country, City"
-              value={locationText}
-              onChange={(e) => setLocationText(e.target.value)}
+              value={locText}
+              onChange={(e) => setLocText(e.target.value)}
               className="w-full p-3 border border-gray-200 rounded-lg placeholder:text-gray-400 focus:outline-none focus:border-[#0064D2]"
             />
           </div>
-          {/* Start Date & End Date */}
+
+          {/* Date Range */}
           <RangePicker
             placeholder={["Start Date", "End Date"]}
             value={dateRange}
             onChange={setDateRange}
             style={{ width: "100%" }}
           />
-          {/* Security Type */}
+
+          {/* Security Type Dropdown */}
           <div className="space-y-2">
             <select
+              value={typeValue}
+              onChange={(e) => setTypeValue(e.target.value)}
               className="w-full p-3 border border-gray-200 rounded-lg text-gray-500 placeholder:text-gray-400 focus:outline-none focus:border-[#0064D2]"
-              value={selectedType}
-              onChange={handleTypeChange}
             >
               <option value="All">All Security Types</option>
               <option value="Personal Bodyguard">Personal Bodyguard</option>
               <option value="Security Guard">Security Guard</option>
               <option value="Executive Protection">Executive Protection</option>
               <option value="Event Security">Event Security</option>
+              <option value="Escort">Escort</option>
+              <option value="vip">Vip Protection</option>
             </select>
           </div>
         </div>
+
         {/* Search Button */}
         <div>
           <button
             onClick={handleSearch}
-            className="w-full bg-[#0064D2] text-white py-3 rounded-lg font-bold"
+            className="w-full bg-[#0064D2] text-white py-3 rounded-lg font-bold hover:bg-[#0051ad] transition"
           >
             Search
           </button>
         </div>
       </div>
-
-      {/* Services Grid */}
+      {/* Results Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 container mx-auto py-10">
-        {cardProviders.map((securityProvider, index) => (
-          <SecurityCard
-            key={`${securityProvider.id}-${index}`}
-            securityProvider={securityProvider}
-            to={securityProvider.to}
-          />
-        ))}
-
-        {/* Loading spinner */}
-        {(isLoading || isFetching) && (
-          <div className="col-span-full flex justify-center py-8">
-            <Spin size="large" />
-          </div>
-        )}
-
-        {/* Intersection observer target */}
-        <div ref={loader} style={{ height: "20px" }} />
-
-        {/* No results message */}
-        {!isLoading && cardProviders.length === 0 && (
+        <SecurityCard
+          data={filteredBusinesses}
+          userCurrency={userCurrency}
+          userCountry={userCountry}
+          conversionRate={conversionRate}
+        />
+        {filteredBusinesses && filteredBusinesses.length === 0 && (
           <div className="col-span-full text-center py-10">
-            <p className="text-gray-500">No security providers found.</p>
+            <p className="text-gray-500">No data available.</p>
           </div>
         )}
       </div>

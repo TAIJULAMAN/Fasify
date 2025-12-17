@@ -81,7 +81,7 @@ export const securityApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["security"],
     }),
-    getSecurityPartner: builder.mutation({
+    getSecurityPartner: builder.query({
       query: ({ page, limit }) => ({
         url: `/security-protocols/partner`,
         method: "GET",
@@ -112,21 +112,29 @@ export const securityApi = baseApi.injectEndpoints({
       }),
       providesTags: ['security'],
     }),
+    guestLogin: builder.mutation({
+      query: (guestData) => ({
+        url: "/auth/login-website",
+        method: "POST",
+        body: guestData,
+      }),
+    }),
   }),
 });
 
 export const {
+  useGetAllSecurityQuery,
   useGetSecurityTotalSalesQuery,
   useGetSecurityBookingsQuery,
-  useGetAllSecurityQuery,
   useGetAllSecurityProtocolsQuery,
   useGetSecurityProtocolByIdQuery,
   useGetSecurityGuardByPartnerIdQuery,
   useDeleteSecurityGuardMutation,
   useAddSecurityGuardMutation,
   useGetAvailableSecurityQuery,
-  useGetSecurityPartnerMutation,
   useUpdateSecurityBusinessMutation,
   useAddSecurityBusinessMutation,
   useGetAllSecurityProtocolsWithGuardsQuery,
+  useGetSecurityPartnerQuery,
+  useGuestLoginMutation,
 } = securityApi;

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 
 import HotelHeader from "./HotelHeader";
 import ImageGallery from "./ImageGallery";
@@ -8,8 +8,13 @@ import { useLocation, useParams } from "react-router-dom";
 import { useGetHotelReviewsQuery } from "../../redux/api/hotel/hotelReviewsApi";
 import { useGetHotelDetailsQuery } from "../../redux/api/hotel/hotelApi";
 import { MapPin, Star, ExternalLink } from "lucide-react";
+import { currencyByCountry } from "../../components/curenci";
 
 export default function HotelDetails() {
+  const [userCurrency, setUserCurrency] = useState("USD");
+  const [userCountry, setUserCountry] = useState(null);
+  const [conversionRate, setConversionRate] = useState(1);
+
   const location = useLocation();
   const { id: routeId } = useParams();
   const hotel = location.state?.hotel;
@@ -21,6 +26,53 @@ export default function HotelDetails() {
 
   const hotelFromApi = hotelDetails?.data ?? hotelDetails;
   const hotelData = hotel || hotelFromApi;
+
+  // Currency detection and conversion
+  const basePrice = hotelData?.averagePrice ?? hotelData?.roomPrice ?? 0;
+  const baseCurrency = hotelData?.roomCurrency ?? "USD";
+
+  useEffect(() => {
+    const detect = async () => {
+      try {
+        const res = await fetch("https://api.country.is/");
+        const data = await res.json();
+        const country = data.country;
+
+        if (country && currencyByCountry[country]) {
+          setUserCountry(country);
+          const userCurr = currencyByCountry[country].code;
+          setUserCurrency(userCurr);
+
+          // Fetch conversion: baseCurrency → user's currency
+          let rate = 1;
+
+          if (baseCurrency !== userCurr) {
+            const rateRes = await fetch(
+              "https://open.er-api.com/v6/latest/USD"
+            );
+            const rateData = await rateRes.json();
+
+            if (rateData?.rates) {
+              const baseToUSD =
+                baseCurrency === "USD" ? 1 : 1 / rateData.rates[baseCurrency];
+              const usdToUser = rateData.rates[userCurr] || 1;
+              rate = baseToUSD * usdToUser;
+            }
+          }
+
+          setConversionRate(rate);
+        }
+      } catch (e) {
+        setUserCurrency("USD");
+        setConversionRate(1);
+      }
+    };
+
+    detect();
+  }, [baseCurrency]);
+
+  // Price converted
+  const convertedPrice = Number(basePrice * conversionRate).toFixed(2);
 
   // Build complete address for accurate location
   const fullAddress = [
@@ -37,7 +89,6 @@ export default function HotelDetails() {
 
   const openFullMap = () => {
     if (fullAddress) {
-      // Using place search for more accurate results
       const url = `https://www.google.com/maps/search/${encodedQuery}`;
       window.open(url, "_blank");
     } else {
@@ -45,7 +96,6 @@ export default function HotelDetails() {
     }
   };
 
-  console.log("hoteldata", hotelData);
   const reviewArray = Array.isArray(hotelData.averageReviewCount)
     ? hotelData.averageReviewCount
     : reviews?.data || [];
@@ -91,51 +141,7 @@ export default function HotelDetails() {
             <div className="lg:col-span-2">
               <ImageGallery hotel={hotelData} />
               <PropertyDetails hotel={hotelData} />
-              {/* <section className="my-6 bg-white border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Reviews
-                  </h2>
-                  <span className="text-sm text-gray-600">
-                    {reviewCount} review{reviewCount !== 1 ? "s" : ""}
-                  </span>
-                </div>
-                {isReviewsFetching ? (
-                  <p className="text-sm text-gray-500">Loading reviews...</p>
-                ) : reviewCount === 0 ? (
-                  <p className="text-sm text-gray-500">No reviews yet.</p>
-                ) : (
-                  <ul className="space-y-4">
-                    {reviewArray.map((rev) => (
-                      <li
-                        key={rev.id}
-                        className="border border-gray-100 rounded-md p-3"
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          {[1, 2, 3, 4, 5].map((s, i) => (
-                            <span
-                              key={s}
-                              className={`w-3 h-3 inline-block ${
-                                i < Math.round(Number(rev?.rating || 0))
-                                  ? "bg-yellow-400"
-                                  : "bg-gray-200"
-                              }`}
-                            ></span>
-                          ))}
-                          <span className="text-xs text-gray-600">
-                            {Number(rev?.rating || 0).toFixed(1)}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-800">
-                          {rev?.comment || ""}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section> */}
             </div>
-
             <div className="lg:sticky lg:top-4 space-y-4">
               {/* Interactive Map Component */}
               <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
