@@ -25,11 +25,8 @@ export default function SecurityCheckout() {
 
   const user = useSelector((state) => state?.auth?.user);
 
-  console.log("userinfo form security", user);
 
-  // Accept data from multiple shapes
   const raw = location.state || {};
-  console.log("SecurityCheckout raw state:", raw);
 
   const bookingDetails =
     raw.payload ||
@@ -41,17 +38,6 @@ export default function SecurityCheckout() {
     raw.payload?.data ||
     {};
 
-  console.log("SecurityCheckout bookingDetails:", bookingDetails);
-  console.log("SecurityCheckout guard info:", {
-    guardId: bookingDetails?.guardId,
-    guardName: bookingDetails?.guardName,
-    serviceType: bookingDetails?.serviceType,
-    pricePerDay: bookingDetails?.pricePerDay,
-    convertedPrice: bookingDetails?.convertedPrice,
-    displayCurrency: bookingDetails?.displayCurrency,
-  });
-
-  // Fallback guard info if missing
   const guardInfo = {
     guardId:
       bookingDetails?.guardId || bookingDetails?.id || bookingDetails?._id,
@@ -73,7 +59,6 @@ export default function SecurityCheckout() {
       bookingDetails?.photo || bookingDetails?.guardPhoto || "/placeholder.svg",
   };
 
-  console.log("Final guard info:", guardInfo);
 
   const guestInfo = raw.guestInfo || {};
 
@@ -88,55 +73,39 @@ export default function SecurityCheckout() {
   const basePrice =
     bookingDetails?.pricePerDay || bookingDetails?.convertedPrice || 0;
 
-  console.log(
-    "Security checkout basePrice",
-    basePrice,
-    "baseCurrency",
-    baseCurrency
-  );
+
 
   useEffect(() => {
     const detect = async () => {
       try {
-        console.log("Starting currency detection for security checkout...");
         const res = await fetch("https://api.country.is/");
         const data = await res.json();
-        console.log("Location API response:", data);
         const country = data.country;
-        console.log("Detected country:", country);
 
         if (country && currencyByCountry[country]) {
-          console.log("Country found in mapping:", country);
           setUserCountry(country);
           const userCurr = currencyByCountry[country].code;
-          console.log("User currency code:", userCurr);
           setUserCurrency(userCurr);
 
-          // Fetch conversion: baseCurrency → user's currency
           let rate = 1;
 
           if (baseCurrency !== userCurr) {
-            console.log("Converting from", baseCurrency, "to", userCurr);
             const rateRes = await fetch(
               "https://open.er-api.com/v6/latest/USD"
             );
             const rateData = await rateRes.json();
-            console.log("Exchange rate data:", rateData);
 
             if (rateData?.rates) {
               const baseToUSD =
                 baseCurrency === "USD" ? 1 : 1 / rateData.rates[baseCurrency];
               const usdToUser = rateData.rates[userCurr] || 1;
               rate = baseToUSD * usdToUser;
-              console.log("Calculated conversion rate:", rate);
             }
           } else {
-            console.log("No conversion needed - same currency");
           }
 
           setConversionRate(rate);
         } else {
-          console.log("Country not found in mapping, using USD");
           setUserCurrency("USD");
           setConversionRate(1);
         }
@@ -198,16 +167,7 @@ export default function SecurityCheckout() {
   // Final Total = subtotal + VAT
   const finalTotal = Number((calculatedSubtotal + vatAmount).toFixed(2));
 
-  console.log("💰 Security checkout conversion details:", {
-    basePrice: pricePerDay,
-    baseCurrency,
-    userCurrency,
-    conversionRate,
-    convertedPricePerDay,
-    calculatedSubtotal,
-    vatAmount,
-    finalTotal,
-  });
+
 
   // =============================
   // Guest Information
@@ -311,9 +271,6 @@ export default function SecurityCheckout() {
         status: "pending",
         paymentStatus: "pending",
       };
-
-      console.log("📤 FINAL BOOKING BODY →", body);
-      console.log("🎯 Using security protocol ID:", bookingDetails?.guardId);
 
       // Use the security protocol ID (the actual guard entry ID)
       const resp = await createSecurityBooking({

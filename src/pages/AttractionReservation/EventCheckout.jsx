@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useCreateAttractionBookingMutation } from "../../redux/api/attraction/attractionApi";
 import { useSelector } from "react-redux";
 import {
@@ -19,11 +19,6 @@ export default function EventCheckout() {
   const [createAttractionBooking] = useCreateAttractionBookingMutation();
   const navigate = useNavigate();
   const user = useSelector((state) => state?.auth?.user);
-
-  // Accept booking data from multiple shapes
-  // - From EventReservationPage.handleBooking: { state: { bookingDetails } }
-  // - From EventGuestLogin redirect: { state: { bookingDetails } }
-  // - Fallbacks for other shapes reused from security flow
   const raw = location.state || {};
   const bookingDetails =
     raw.bookingDetails ||
@@ -38,8 +33,6 @@ export default function EventCheckout() {
   const guestInfo = location.state?.guestInfo || {};
   const [isProcessing, setIsProcessing] = useState(false);
   const cancelationPolicy = bookingDetails?.cancelationPolicy;
-  console.log("bookingDetails", bookingDetails);
-
   // Currency detection states
   const [userCurrency, setUserCurrency] = useState(
     bookingDetails?.userCurrency || "USD"
@@ -54,53 +47,37 @@ export default function EventCheckout() {
   // Currency detection effect (only if not provided from booking details)
   React.useEffect(() => {
     if (bookingDetails?.userCurrency && bookingDetails?.conversionRate) {
-      console.log("EventCheckout: Using currency from booking details:", {
-        userCurrency: bookingDetails.userCurrency,
-        userCountry: bookingDetails.userCountry,
-        conversionRate: bookingDetails.conversionRate,
-      });
       return;
     }
 
     const detect = async () => {
       try {
-        console.log("EventCheckout: Starting currency detection...");
         const res = await fetch("https://api.country.is/");
         const data = await res.json();
-        console.log("EventCheckout: Location API response:", data);
         const country = data.country;
-        console.log("EventCheckout: Detected country:", country);
 
         if (country && currencyByCountry[country]) {
-          console.log("EventCheckout: Country found in mapping:", country);
           setUserCountry(country);
           const userCurr = currencyByCountry[country].code;
-          console.log("EventCheckout: User currency code:", userCurr);
           setUserCurrency(userCurr);
 
           // Fetch conversion: USD → user's currency
           let rate = 1;
 
           if ("USD" !== userCurr) {
-            console.log("EventCheckout: Converting from USD to", userCurr);
             const rateRes = await fetch(
               "https://open.er-api.com/v6/latest/USD"
             );
             const rateData = await rateRes.json();
-            console.log("EventCheckout: Exchange rate data:", rateData);
-
             if (rateData?.rates) {
               const usdToUser = rateData.rates[userCurr] || 1;
               rate = usdToUser;
-              console.log("EventCheckout: Calculated conversion rate:", rate);
             }
           } else {
-            console.log("EventCheckout: No conversion needed - USD");
           }
 
           setConversionRate(rate);
         } else {
-          console.log("EventCheckout: Country not found in mapping, using USD");
           setUserCurrency("USD");
           setConversionRate(1);
         }
@@ -122,7 +99,6 @@ export default function EventCheckout() {
   );
   const childCount = Number(bookingDetails?.children ?? 0);
 
-  // Calculate converted prices if not provided
   let finalAdultPrice = Number(
     bookingDetails?.convertedAdultPrice ?? unitPrice
   );
@@ -134,29 +110,20 @@ export default function EventCheckout() {
       finalAdultPrice * adultCount + finalChildPrice * childCount
   );
 
-  // If we have base prices and conversion rate, calculate converted prices
   if (bookingDetails?.baseAdultPrice && conversionRate && userCurrency) {
     const baseCurrency = bookingDetails?.baseCurrency || "NGN";
 
-    // Convert from base currency to user currency
     if (baseCurrency === "NGN" && userCurrency === "USD") {
-      // Convert NGN to USD (assuming 1 USD = 1515 NGN)
       const ngnToUsdRate = 1 / 1515;
       finalAdultPrice = Number(bookingDetails.baseAdultPrice * ngnToUsdRate);
       finalChildPrice = Number(bookingDetails.baseChildPrice * ngnToUsdRate);
-    }
-    // If base currency is USD and user has different currency
-    else if (baseCurrency === "USD") {
+    } else if (baseCurrency === "USD") {
       finalAdultPrice = Number(bookingDetails.baseAdultPrice * conversionRate);
       finalChildPrice = Number(bookingDetails.baseChildPrice * conversionRate);
-    }
-    // If base currency is not USD but user wants USD
-    else if (userCurrency === "USD") {
+    } else if (userCurrency === "USD") {
       finalAdultPrice = Number(bookingDetails.baseAdultPrice / conversionRate);
       finalChildPrice = Number(bookingDetails.baseChildPrice / conversionRate);
-    }
-    // For other conversions, use the provided conversion rate
-    else {
+    } else {
       finalAdultPrice = Number(bookingDetails.baseAdultPrice * conversionRate);
       finalChildPrice = Number(bookingDetails.baseChildPrice * conversionRate);
     }
@@ -164,22 +131,8 @@ export default function EventCheckout() {
     finalTotal = finalAdultPrice * adultCount + finalChildPrice * childCount;
   }
 
-  console.log("EventCheckout: Price calculation:", {
-    eventName: bookingDetails?.eventName,
-    baseAdultPrice: bookingDetails?.baseAdultPrice,
-    baseChildPrice: bookingDetails?.baseChildPrice,
-    unitPrice,
-    finalAdultPrice,
-    finalChildPrice,
-    finalTotal,
-    userCurrency,
-    conversionRate,
-  });
-
   const convertedAdultPrice = finalAdultPrice;
   const convertedChildPrice = finalChildPrice;
-
-  // Derive guest fields from multiple possible shapes
   const deriveGuest = () => ({
     name:
       guestInfo?.name ||
@@ -213,7 +166,6 @@ export default function EventCheckout() {
 
   const [updatedUser, setUpdatedUser] = useState(deriveGuest());
 
-  // Keep form synced if route state or user changes
   React.useEffect(() => {
     setUpdatedUser(deriveGuest());
   }, [
@@ -236,7 +188,6 @@ export default function EventCheckout() {
       return;
     }
 
-    // Guests coming from EventGuestLogin should now be authenticated
     if (!user) {
       handleError("Please sign in to confirm your booking");
       return;

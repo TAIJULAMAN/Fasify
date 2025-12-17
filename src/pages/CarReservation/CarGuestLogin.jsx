@@ -15,7 +15,6 @@ export default function CarGuestLogin() {
   const bookingData = location.state?.bookingData;
   const returnUrl = location.state?.returnUrl || "/hotel/checkout";
   const { token } = useSelector((state) => state.auth);
-  console.log("guest login", bookingData);
   useEffect(() => {
     if (token) {
       navigate(returnUrl, {

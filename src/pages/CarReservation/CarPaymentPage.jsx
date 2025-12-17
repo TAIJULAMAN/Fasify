@@ -93,11 +93,8 @@ export default function PaymentConfirm() {
     location.state?.bookingData ||
     location.state?.data ||
     null;
-  console.log("Booking details of aman", bookingDetails);
 
   const carCancelationPolicy = location.state?.carCancelationPolicy;
-  // console.log("carCancelationPolicy", carCancelationPolicy);
-  // console.log("Booking details from car payment page", bookingDetails);
   useEffect(() => {
     if (bookingDetails?.user?.country) {
       const country = bookingDetails.user.country.toLowerCase();
@@ -134,7 +131,6 @@ export default function PaymentConfirm() {
   );
 
   const userInfo = location.state?.userInfo;
-  console.log("userInfo of car payment page", userInfo);
 
   // Format date to be more readable
   const formatDate = (dateString) => {
@@ -144,15 +140,6 @@ export default function PaymentConfirm() {
   };
   // Get booking ID from URL params or state
   const searchParams = new URLSearchParams(location.search);
-
-  // Debug logging for all potential ID sources
-  console.log("Debug - Booking ID sources:", {
-    fromUrl: searchParams.get("bookingId"),
-    fromLocationState: location.state?.createdBookingId,
-    fromBookingDetails: bookingDetails?.id,
-    fullLocationState: location.state,
-    fullBookingDetails: bookingDetails,
-  });
 
   // Get booking ID from multiple sources with fallback
   const bookingId = (() => {
@@ -181,13 +168,8 @@ export default function PaymentConfirm() {
     return null;
   })();
 
-  console.log("Current booking ID:", bookingId);
-
   const handlePayment = async () => {
-    console.log("Payment button clicked");
-
     if (!total || total <= 0) {
-      console.log("Payment not processed: Invalid total amount", total);
       toast.error("Invalid total amount");
       return;
     }
@@ -200,10 +182,7 @@ export default function PaymentConfirm() {
       bookingDetails?.carId ||
       null;
 
-    console.log("Current booking ID:", currentBookingId);
-
     if (!currentBookingId) {
-      console.error("No booking ID found in any source");
       toast.error(
         "Booking reference not found. Please try refreshing the page or contact support."
       );
@@ -212,7 +191,6 @@ export default function PaymentConfirm() {
 
     // Check if user data exists
     if (!bookingDetails?.user) {
-      console.error("No user data found");
       toast.error("User information missing. Please go back and try again.");
       return;
     }
@@ -245,7 +223,6 @@ export default function PaymentConfirm() {
         carSeats: bookingDetails.carSeats,
         carCountry: userInfo?.country,
       };
-      console.log("Booking confirmation data:", bookingConfirmationData);
 
       // Store in session storage as fallback
       sessionStorage.setItem(
@@ -282,20 +259,13 @@ export default function PaymentConfirm() {
         },
       };
 
-      console.log("Payment data of car payment", paymentData);
-
       // Determine payment method based on user country
       const userCountry = (bookingDetails.user.country || "").toLowerCase();
       const isUserInAfrica = isAfricanCountry(userCountry);
       const selectedMethod = isUserInAfrica ? "paystack" : "stripe";
       setPaymentMethod(selectedMethod);
 
-      console.log(
-        `Using payment method: ${selectedMethod} for country: ${userCountry}`
-      );
-
       if (selectedMethod === "paystack") {
-        console.log("Initiating Paystack payment...");
         const response = await createPaystackSession(currentBookingId).unwrap();
 
         const checkoutUrl =
@@ -320,7 +290,6 @@ export default function PaymentConfirm() {
 
         window.location.href = checkoutUrl;
       } else {
-        console.log("Initiating Stripe payment...");
         const response = await createStripeSession(currentBookingId).unwrap();
 
         const checkoutUrl =
@@ -346,11 +315,10 @@ export default function PaymentConfirm() {
         window.location.href = checkoutUrl;
       }
     } catch (error) {
-      console.error("Payment processing error:", error);
       toast.error(
         error?.data?.message ||
           error?.message ||
-          "Failed to process payment. Please try again."
+          "Payment failed. Please try again."
       );
     } finally {
       setIsLoading(false);

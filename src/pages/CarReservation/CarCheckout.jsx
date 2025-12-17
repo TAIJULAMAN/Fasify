@@ -33,58 +33,41 @@ export default function CarCheckout() {
   // Currency detection effect (only if not provided from booking details)
   React.useEffect(() => {
     if (bookingDetails?.userCurrency && bookingDetails?.conversionRate) {
-      console.log("CarCheckout: Using currency from booking details:", {
-        userCurrency: bookingDetails.userCurrency,
-        userCountry: bookingDetails.userCountry,
-        conversionRate: bookingDetails.conversionRate,
-      });
       return;
     }
 
     const detect = async () => {
       try {
-        console.log("CarCheckout: Starting currency detection...");
         const res = await fetch("https://api.country.is/");
         const data = await res.json();
-        console.log("CarCheckout: Location API response:", data);
         const country = data.country;
-        console.log("CarCheckout: Detected country:", country);
 
         if (country && currencyByCountry[country]) {
-          console.log("CarCheckout: Country found in mapping:", country);
           setUserCountry(country);
           const userCurr = currencyByCountry[country].code;
-          console.log("CarCheckout: User currency code:", userCurr);
           setUserCurrency(userCurr);
 
           // Fetch conversion: USD → user's currency
           let rate = 1;
 
           if ("USD" !== userCurr) {
-            console.log("CarCheckout: Converting from USD to", userCurr);
             const rateRes = await fetch(
               "https://open.er-api.com/v6/latest/USD"
             );
             const rateData = await rateRes.json();
-            console.log("CarCheckout: Exchange rate data:", rateData);
 
             if (rateData?.rates) {
               const usdToUser = rateData.rates[userCurr] || 1;
               rate = usdToUser;
-              console.log("CarCheckout: Calculated conversion rate:", rate);
             }
-          } else {
-            console.log("CarCheckout: No conversion needed - USD");
           }
 
           setConversionRate(rate);
         } else {
-          console.log("CarCheckout: Country not found in mapping, using USD");
           setUserCurrency("USD");
           setConversionRate(1);
         }
       } catch (e) {
-        console.error("CarCheckout: Detection or conversion failed:", e);
         setUserCurrency("USD");
         setConversionRate(1);
       }
@@ -99,7 +82,6 @@ export default function CarCheckout() {
       const decoded = jwtDecode(accessToken);
       return { ...user, ...decoded, token: accessToken };
     } catch (error) {
-      console.error("Error decoding token:", error);
       return null;
     }
   }, [accessToken, user]);
@@ -140,17 +122,6 @@ export default function CarCheckout() {
     if (totalValue > 0) {
       price = totalValue / daysCount;
     }
-
-    console.log("CarCheckout: Price calculation:", {
-      carName: bookingDetails.carName,
-      basePrice: bookingDetails.basePrice,
-      unitPrice: bookingDetails.unitPrice,
-      total: bookingDetails.total,
-      calculatedPrice: price,
-      days,
-      userCurrency,
-      conversionRate,
-    });
 
     return price;
   }, [bookingDetails, days, conversionRate, userCurrency]);
@@ -297,8 +268,6 @@ export default function CarCheckout() {
         basePrice: bookingDetails.basePrice || bookingDetails.unitPrice || 0,
       };
 
-      console.log("bookingPayload (per‑day sent to backend):", bookingPayload);
-
       const response = await createCarBooking({
         carId: bookingDetails.carId,
         data: bookingPayload,
@@ -340,7 +309,6 @@ export default function CarCheckout() {
         },
       });
     } catch (error) {
-      console.error("Car booking creation error:", error);
       handleError(
         error?.data?.message || error?.message || "Failed to create booking."
       );
@@ -414,11 +382,9 @@ export default function CarCheckout() {
                     />
                   </div>
 
-                
-
                   <div>
                     <label className="text-sm font-medium text-gray-700">
-                      Contact Number 
+                      Contact Number
                     </label>
                     <input
                       type="text"
@@ -441,8 +407,6 @@ export default function CarCheckout() {
                       className="mt-1 w-full rounded-md border p-2"
                     />
                   </div>
-
-                 
                 </form>
               </div>
 

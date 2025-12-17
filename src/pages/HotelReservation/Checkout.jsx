@@ -96,20 +96,6 @@ export default function Checkout() {
     // Add VAT to get total
     totalAmount = subtotal + (subtotal * vatRate) / 100;
     vatAmount = totalAmount - subtotal;
-    console.log(
-      "Using subtotal from BookingForm:",
-      bookingFormTotal,
-      "Subtotal:",
-      subtotal,
-      "Total with VAT:",
-      totalAmount,
-      "BasePrice:",
-      basePrice,
-      "Nights:",
-      nights,
-      "Rooms:",
-      rooms
-    );
   } else {
     // Fallback calculation
     const baseSubtotal = Number(basePrice || 0);
@@ -117,16 +103,6 @@ export default function Checkout() {
     subtotal = convertedRoomPrice * nights * rooms;
     vatAmount = subtotal * (vatRate / 100);
     totalAmount = subtotal + vatAmount;
-    console.log(
-      "Calculated total:",
-      totalAmount,
-      "Subtotal:",
-      subtotal,
-      "BasePrice:",
-      basePrice,
-      "ConversionRate:",
-      conversionRate
-    );
   }
 
   // Format currency for display
@@ -193,7 +169,6 @@ export default function Checkout() {
         bookingId: bookingData.roomId,
         data: payload,
       }).unwrap();
-    
 
       const createdBookingId =
         res.data?._id || res.data?.id || res._id || res.id;
