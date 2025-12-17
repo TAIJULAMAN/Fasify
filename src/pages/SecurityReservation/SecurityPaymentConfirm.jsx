@@ -84,6 +84,7 @@ import {
   ArrowLeft,
   Phone,
 } from "lucide-react";
+import { ToastContainer } from "react-toastify";
 
 export default function PaymentConfirm() {
   const location = useLocation();
@@ -245,7 +246,37 @@ export default function PaymentConfirm() {
     } catch (err) {
       const msg =
         err?.data?.message || err?.message || "Failed to create booking";
-      toast.error(msg);
+
+      // Debug logging to see the actual error structure
+      console.log("Booking error details:", err);
+      console.log("Error message:", msg);
+      console.log("Error data:", err?.data);
+
+      // Enhanced duplicate booking detection
+      const isDuplicateBooking =
+        msg.toLowerCase().includes("already") ||
+        msg.toLowerCase().includes("duplicate") ||
+        msg.toLowerCase().includes("exists") ||
+        msg.toLowerCase().includes("booking") ||
+        msg.toLowerCase().includes("security") ||
+        msg.toLowerCase().includes("taken") ||
+        msg.toLowerCase().includes("conflict") ||
+        err?.data?.code === "P2002" ||
+        err?.data?.error === "Unique constraint" ||
+        err?.name === "PrismaClientKnownRequestError" ||
+        (err?.data?.meta?.modelName === "Security_Booking" &&
+          err?.data?.meta?.message?.includes("Unique constraint"));
+
+      if (isDuplicateBooking) {
+        const duplicateMessage =
+          "You already have a booking for this security service in the selected days";
+        toast.error(duplicateMessage);
+        // Also show alert as fallback to ensure message appears
+        alert(duplicateMessage);
+      } else {
+        toast.error(msg);
+      }
+
       return null;
     } finally {
       setIsCreatingBooking(false);
@@ -713,6 +744,8 @@ export default function PaymentConfirm() {
           </div>
         </div>
       )}
+
+      <ToastContainer />
     </div>
   );
 }
