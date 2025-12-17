@@ -25,7 +25,6 @@ export default function SecurityCheckout() {
 
   const user = useSelector((state) => state?.auth?.user);
 
-
   const raw = location.state || {};
 
   const bookingDetails =
@@ -59,7 +58,6 @@ export default function SecurityCheckout() {
       bookingDetails?.photo || bookingDetails?.guardPhoto || "/placeholder.svg",
   };
 
-
   const guestInfo = raw.guestInfo || {};
 
   const [createSecurityBooking, { isLoading }] =
@@ -72,8 +70,6 @@ export default function SecurityCheckout() {
     bookingDetails?.currency || bookingDetails?.displayCurrency || "USD";
   const basePrice =
     bookingDetails?.pricePerDay || bookingDetails?.convertedPrice || 0;
-
-
 
   useEffect(() => {
     const detect = async () => {
@@ -167,8 +163,6 @@ export default function SecurityCheckout() {
   // Final Total = subtotal + VAT
   const finalTotal = Number((calculatedSubtotal + vatAmount).toFixed(2));
 
-
-
   // =============================
   // Guest Information
   // =============================
@@ -229,7 +223,7 @@ export default function SecurityCheckout() {
     setIsProcessing(true);
 
     try {
-      const body = {
+      const bookingPayload = {
         // Booking Info
         number_of_security:
           bookingDetails?.number_of_security ??
@@ -256,7 +250,7 @@ export default function SecurityCheckout() {
         cancelationPolicy: bookingDetails?.cancellationPolicy,
 
         // Identification - Use security protocol ID (the actual guard entry)
-        guardId: bookingDetails?.guardId, // This should be "6918e5fcc17c4e67050efc64" for Danny Khan
+        guardId: bookingDetails?.guardId,
         guardName: bookingDetails?.guardName,
         serviceType: bookingDetails?.serviceType || "Security",
         serviceDescription: bookingDetails?.serviceDescription,
@@ -272,28 +266,26 @@ export default function SecurityCheckout() {
         paymentStatus: "pending",
       };
 
-      // Use the security protocol ID (the actual guard entry ID)
-      const resp = await createSecurityBooking({
-        id: bookingDetails?.guardId, // This should be "6918e5fcc17c4e67050efc64" not "6918e333c17c4e67050efc60"
-        body,
-      }).unwrap();
+      const paymentData = {
+        bookingPayload,
+        data: bookingDetails,
+        user: updatedUser,
+        total: finalTotal,
+        userCurrency,
+        guardInfo,
+        days,
+        personnelCount,
+      };
 
-      handleSuccess("Security service reserved successfully!");
+      handleSuccess("Proceeding to payment...");
 
-      const createdBookingId = resp?.data?.id || resp?.id || "";
-
-      navigate(
-        `/security/payment-confirm?bookingId=${encodeURIComponent(
-          createdBookingId
-        )}`,
-        {
-          state: { data: resp, data2: bookingDetails },
-          replace: true,
-        }
-      );
+      navigate(`/security/payment-confirm`, {
+        state: { bookingData: bookingPayload, data: paymentData },
+        replace: true,
+      });
     } catch (e) {
       const msg =
-        e?.data?.message || e?.message || "Failed to create security booking";
+        e?.data?.message || e?.message || "Failed to prepare security booking";
       handleError(msg);
     } finally {
       setIsProcessing(false);

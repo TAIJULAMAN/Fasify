@@ -195,41 +195,29 @@ export default function PaymentConfirm() {
       return;
     }
 
-    console.log("handlePayment - currentBookingId:", currentBookingId);
-
     // Show booking confirmation modal and auto-proceed after 3 seconds
     setShowBookingModal(true);
     setCountdown(3);
 
     // Clear any existing timer
-    if (modalTimer) clearInterval(modalTimer);
+    if (modalTimer) clearTimeout(modalTimer);
 
     // Set timer to auto-proceed to payment after 3 seconds
     let secondsLeft = 3;
-    console.log("Setting up timer, starting countdown from 3");
     const countdownInterval = setInterval(() => {
       secondsLeft--;
-      console.log("Countdown:", secondsLeft);
       setCountdown(secondsLeft);
       if (secondsLeft <= 0) {
-        console.log("Timer finished, calling proceedToPayment");
         clearInterval(countdownInterval);
         setShowBookingModal(false);
-        proceedToPayment(currentBookingId);
+        proceedToPayment();
       }
     }, 1000);
 
     setModalTimer(countdownInterval);
   };
 
-  const proceedToPayment = async (bookingId) => {
-    console.log("proceedToPayment called with bookingId:", bookingId);
-
-    if (!bookingId || bookingId === "null") {
-      toast.error("Invalid booking ID");
-      return;
-    }
-
+  const proceedToPayment = async () => {
     if (!bookingDetails?.user?.country) {
       toast.error("Please select a country");
       return;
@@ -238,8 +226,7 @@ export default function PaymentConfirm() {
     setIsLoading(true);
 
     try {
-      const currentBookingId = bookingId;
-      console.log("Current booking ID:", currentBookingId);
+      const currentBookingId = createdBookingId;
       const successUrl = `${window.location.origin}/booking-confirmation`;
       const cancelUrl = `${window.location.origin}/hotel/checkout`;
 
