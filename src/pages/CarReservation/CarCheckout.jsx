@@ -87,11 +87,13 @@ export default function CarCheckout() {
   }, [accessToken, user]);
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [modalTimer, setModalTimer] = useState(null);
+  const [countdown, setCountdown] = useState(3);
+  const [createdBookingId, setCreatedBookingId] = useState(null);
   const [createCarBooking] = useCreateCarBookingMutation();
 
-  /* -------------------------------------------------------------------------- */
-  /*                       🔹 FIXED DAYS CALCULATION                           */
-  /* -------------------------------------------------------------------------- */
+
   const days = useMemo(() => {
     if (!bookingDetails?.pickupDate || !bookingDetails?.returnDate) return 1;
 
@@ -273,41 +275,60 @@ export default function CarCheckout() {
         data: bookingPayload,
       }).unwrap();
 
-      const createdBookingId =
+      const bookingId =
         response?.data?.bookingId ||
         response?.data?._id ||
         response?.data?.id ||
         response?.bookingId ||
         null;
 
-      if (!createdBookingId)
-        throw new Error("Booking reference missing from server.");
+      if (!bookingId) throw new Error("Booking reference missing from server.");
 
-      handleSuccess("Car reserve successfully!");
+      setCreatedBookingId(bookingId);
+      handleSuccess("Car booking created successfully!");
 
-      // Payment page uses full total only for DISPLAY
-      navigate("/car/payment", {
-        state: {
-          bookingDetails: {
-            ...bookingDetails,
-            bookingId: createdBookingId,
-            // optional: keep vat just for showing breakdown
-            vat: Number(displayVat),
-            user: userInfo,
+      // Show booking confirmation modal and auto-proceed after 3 seconds
+      setShowBookingModal(true);
+      setCountdown(3);
 
-            // Add currency conversion for payment page
-            userCurrency,
-            userCountry,
-            conversionRate,
-            displayFinalTotal: Number(displayFinalTotal),
-            displayCurrency:
-              userCurrency ||
-              bookingDetails.displayCurrency ||
-              bookingDetails.currency ||
-              "USD",
-          },
-        },
-      });
+      // Clear any existing timer
+      if (modalTimer) clearTimeout(modalTimer);
+
+      // Set timer to auto-proceed to payment after 3 seconds
+      let secondsLeft = 3;
+      const countdownInterval = setInterval(() => {
+        secondsLeft--;
+        setCountdown(secondsLeft);
+        if (secondsLeft <= 0) {
+          clearInterval(countdownInterval);
+          setShowBookingModal(false);
+          // Navigate to payment page with booking and user data
+          navigate("/car/payment", {
+            state: {
+              bookingDetails: {
+                ...bookingDetails,
+                bookingId: bookingId,
+                // optional: keep vat just for showing breakdown
+                vat: Number(displayVat),
+                user: userInfo,
+
+                // Add currency conversion for payment page
+                userCurrency,
+                userCountry,
+                conversionRate,
+                displayFinalTotal: Number(displayFinalTotal),
+                displayCurrency:
+                  userCurrency ||
+                  bookingDetails.displayCurrency ||
+                  bookingDetails.currency ||
+                  "USD",
+              },
+            },
+          });
+        }
+      }, 1000);
+
+      setModalTimer(countdownInterval);
     } catch (error) {
       handleError(
         error?.data?.message || error?.message || "Failed to create booking."
@@ -518,6 +539,41 @@ export default function CarCheckout() {
           </div>
         )}
       </div>
+
+      {/* Booking Confirmation Modal */}
+      {showBookingModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                <svg
+                  className="w-8 h-8 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M5 13l4 4L19 7"
+                  ></path>
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                Car Booking Confirmed!
+              </h3>
+              <p className="text-gray-600 mb-2">
+                Your car booking has been successfully created. Booking ID:{" "}
+                {createdBookingId}
+              </p>
+              <p className="text-sm text-blue-600 font-medium">
+                Redirecting to payment in {countdown}...
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
