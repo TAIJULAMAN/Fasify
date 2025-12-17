@@ -64,55 +64,39 @@ export default function SecurityServiceDetails() {
   const basePrice = business?.averagePrice || 0;
   const baseCurrency =
     business?.securityurrency || business?.displayCurrency || "USD";
-  console.log(
-    "SecurityServiceDetails basePrice",
-    basePrice,
-    "baseCurrency",
-    baseCurrency
-  );
 
   useEffect(() => {
     const detect = async () => {
       try {
-        console.log("Starting currency detection for security details...");
         const res = await fetch("https://api.country.is/");
         const data = await res.json();
-        console.log("Location API response:", data);
         const country = data.country;
-        console.log("Detected country:", country);
 
         if (country && currencyByCountry[country]) {
-          console.log("Country found in mapping:", country);
           setUserCountry(country);
           const userCurr = currencyByCountry[country].code;
-          console.log("User currency code:", userCurr);
           setUserCurrency(userCurr);
 
           // Fetch conversion: baseCurrency → user's currency
           let rate = 1;
 
           if (baseCurrency !== userCurr) {
-            console.log("Converting from", baseCurrency, "to", userCurr);
             const rateRes = await fetch(
               "https://open.er-api.com/v6/latest/USD"
             );
             const rateData = await rateRes.json();
-            console.log("Exchange rate data:", rateData);
 
             if (rateData?.rates) {
               const baseToUSD =
                 baseCurrency === "USD" ? 1 : 1 / rateData.rates[baseCurrency];
               const usdToUser = rateData.rates[userCurr] || 1;
               rate = baseToUSD * usdToUser;
-              console.log("Calculated conversion rate:", rate);
             }
           } else {
-            console.log("No conversion needed - same currency");
           }
 
           setConversionRate(rate);
         } else {
-          console.log("Country not found in mapping, using USD");
           setUserCurrency("USD");
           setConversionRate(1);
         }
@@ -128,16 +112,6 @@ export default function SecurityServiceDetails() {
 
   // Calculate converted price
   const convertedPrice = Number(basePrice * conversionRate).toFixed(2);
-
-  console.log("SecurityServiceDetails conversion details:", {
-    basePrice,
-    baseCurrency,
-    userCurrency,
-    conversionRate,
-    convertedPrice,
-    businessId: business?.id,
-    availableGuardsCount: availableGuards.length,
-  });
 
   const displayRating =
     Number(

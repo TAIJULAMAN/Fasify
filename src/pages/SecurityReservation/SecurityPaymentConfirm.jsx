@@ -103,9 +103,7 @@ export default function PaymentConfirm() {
     raw?.payload ||
     {};
 
-  const hotelData = bookingDetails; // alias to satisfy existing JSX bindings without UI changes
-  console.log("bookingDetails", bookingDetails);
-  // Set payment method based on country/address when component mounts or changes
+  const hotelData = bookingDetails; 
   useEffect(() => {
     const countrySrc = bookingDetails?.user?.country || bookingDetails?.address;
     if (countrySrc) {
@@ -161,15 +159,6 @@ export default function PaymentConfirm() {
   // Get booking ID from URL params or state
   const searchParams = new URLSearchParams(location.search);
 
-  // Debug logging for all potential ID sources
-  console.log("Debug - Booking ID sources:", {
-    fromUrl: searchParams.get("bookingId"),
-    fromLocationState: location.state?.createdBookingId,
-    fromBookingDetails: bookingDetails?.id,
-    fullLocationState: location.state,
-    fullBookingDetails: bookingDetails,
-  });
-
   // Get booking ID from multiple sources with fallback
   const bookingId = (() => {
     // Try URL parameters first
@@ -200,7 +189,6 @@ export default function PaymentConfirm() {
   const handlePayment = async () => {
     // Prevent execution if total is not valid
     if (!total || total <= 0) {
-      console.log("Payment not processed: Invalid total amount");
       return;
     }
     // Use the already retrieved bookingId
@@ -257,7 +245,6 @@ export default function PaymentConfirm() {
       const isUserInAfrica = isAfricanCountry(userCountry);
 
       if (paymentMethod === "paystack" && isUserInAfrica) {
-        console.log("Processing Paystack payment for:", userCountry);
         const response = await createPaystackSession(currentBookingId).unwrap();
 
         const checkoutUrl =
@@ -284,7 +271,6 @@ export default function PaymentConfirm() {
         // Redirect directly to Paystack checkout
         window.location.href = checkoutUrl;
       } else {
-        console.log("Processing Stripe payment for:", userCountry);
         const result = await createStripeSession(currentBookingId).unwrap();
 
         const checkoutUrl =

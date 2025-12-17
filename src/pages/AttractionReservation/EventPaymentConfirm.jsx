@@ -95,8 +95,6 @@ export default function EventPaymentConfirm() {
   const attractionData = attractionDetails?.data || attractionDetails || {};
   const bookingDetails = location.state?.bookingDetails;
   const cancelationPolicy = bookingDetails?.cancelationPolicy;
-  console.log("attractionDetails", attractionDetails);
-  console.log("cancelationPolicy", cancelationPolicy);
 
   // Currency detection states
   const [userCurrency, setUserCurrency] = useState(
@@ -112,20 +110,10 @@ export default function EventPaymentConfirm() {
   // Currency detection effect (only if not provided from booking data)
   useEffect(() => {
     if (attractionData?.userCurrency && attractionData?.conversionRate) {
-      console.log("EventPaymentConfirm: Using currency from attraction data:", {
-        userCurrency: attractionData.userCurrency,
-        userCountry: attractionData.userCountry,
-        conversionRate: attractionData.conversionRate,
-      });
       return;
     }
 
     if (bookingDetails?.userCurrency && bookingDetails?.conversionRate) {
-      console.log("EventPaymentConfirm: Using currency from booking details:", {
-        userCurrency: bookingDetails.userCurrency,
-        userCountry: bookingDetails.userCountry,
-        conversionRate: bookingDetails.conversionRate,
-      });
       setUserCurrency(bookingDetails.userCurrency);
       setUserCountry(bookingDetails.userCountry);
       setConversionRate(bookingDetails.conversionRate);
@@ -134,54 +122,33 @@ export default function EventPaymentConfirm() {
 
     const detect = async () => {
       try {
-        console.log("EventPaymentConfirm: Starting currency detection...");
         const res = await fetch("https://api.country.is/");
         const data = await res.json();
-        console.log("EventPaymentConfirm: Location API response:", data);
         const country = data.country;
-        console.log("EventPaymentConfirm: Detected country:", country);
 
         if (country && currencyByCountry[country]) {
-          console.log(
-            "EventPaymentConfirm: Country found in mapping:",
-            country
-          );
           setUserCountry(country);
           const userCurr = currencyByCountry[country].code;
-          console.log("EventPaymentConfirm: User currency code:", userCurr);
           setUserCurrency(userCurr);
 
           // Fetch conversion: USD → user's currency
           let rate = 1;
 
           if ("USD" !== userCurr) {
-            console.log(
-              "EventPaymentConfirm: Converting from USD to",
-              userCurr
-            );
             const rateRes = await fetch(
               "https://open.er-api.com/v6/latest/USD"
             );
             const rateData = await rateRes.json();
-            console.log("EventPaymentConfirm: Exchange rate data:", rateData);
 
             if (rateData?.rates) {
               const usdToUser = rateData.rates[userCurr] || 1;
               rate = usdToUser;
-              console.log(
-                "EventPaymentConfirm: Calculated conversion rate:",
-                rate
-              );
             }
           } else {
-            console.log("EventPaymentConfirm: No conversion needed - USD");
           }
 
           setConversionRate(rate);
         } else {
-          console.log(
-            "EventPaymentConfirm: Country not found in mapping, using USD"
-          );
           setUserCurrency("USD");
           setConversionRate(1);
         }
@@ -253,21 +220,6 @@ export default function EventPaymentConfirm() {
     const subtotalChildren = childCountFallback * priceChildFallback;
     const total = subtotalAdults + subtotalChildren;
 
-    console.log("EventPaymentConfirm: Total calculation:", {
-      attractionName: attractionData?.name || bookingDetails?.eventName,
-      adultCount: adultCountFallback,
-      childCount: childCountFallback,
-      baseAdultPrice: attractionData?.baseAdultPrice,
-      baseChildPrice: attractionData?.baseChildPrice,
-      priceAdultFallback,
-      priceChildFallback,
-      subtotalAdults,
-      subtotalChildren,
-      total,
-      userCurrency,
-      conversionRate,
-    });
-
     return {
       total,
     };
@@ -294,13 +246,6 @@ export default function EventPaymentConfirm() {
     );
   }
 
-  console.log("EventPaymentConfirm: Final prices for display:", {
-    finalAdultPrice,
-    finalChildPrice,
-    userCurrency,
-    conversionRate,
-  });
-
   // Format date to be more readable
   const formatDate = (dateString) => {
     if (!dateString) return "";
@@ -309,15 +254,6 @@ export default function EventPaymentConfirm() {
   };
   // Get booking ID from URL params or state
   const searchParams = new URLSearchParams(location.search);
-
-  // Debug logging for all potential ID sources
-  console.log("Debug - Booking ID sources:", {
-    fromUrl: searchParams.get("bookingId"),
-    fromLocationState: location.state?.createdBookingId,
-    fromBookingDetails: attractionDetails?.id,
-    fullLocationState: location.state,
-    fullBookingDetails: attractionDetails,
-  });
 
   // Get booking ID from multiple sources with fallback
   const bookingId = (() => {
@@ -353,7 +289,6 @@ export default function EventPaymentConfirm() {
     }
     // Prevent execution if total is not valid
     if (!total || total <= 0) {
-      console.log("Payment not processed: Invalid total amount");
       return;
     }
     // Use the already retrieved bookingId
@@ -472,15 +407,6 @@ export default function EventPaymentConfirm() {
           stripeAmount = Math.round(usdAmount * 100);
           stripeCurrency = "usd";
         }
-
-        console.log("EventPaymentConfirm: Stripe payment data:", {
-          total,
-          userCurrency,
-          conversionRate,
-          isZeroDecimalCurrency,
-          stripeAmount,
-          stripeCurrency,
-        });
 
         const result = await createStripeSession({
           bookingId: currentBookingId,
