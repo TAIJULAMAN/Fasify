@@ -93,7 +93,6 @@ export default function CarCheckout() {
   const [createdBookingId, setCreatedBookingId] = useState(null);
   const [createCarBooking] = useCreateCarBookingMutation();
 
-
   const days = useMemo(() => {
     if (!bookingDetails?.pickupDate || !bookingDetails?.returnDate) return 1;
 
@@ -181,6 +180,13 @@ export default function CarCheckout() {
       bookingDetails?.user?.address ||
       decodedUserInfo?.address ||
       "",
+    country:
+      guest?.country ||
+      user?.country ||
+      bookingDetails?.user?.country ||
+      bookingDetails?.carCountry ||
+      decodedUserInfo?.country ||
+      "",
   });
 
   const userInfo = {
@@ -219,128 +225,51 @@ export default function CarCheckout() {
     setIsProcessing(true);
 
     try {
-      // per‑day price (unit price), will be 100 (or whatever per‑day is)
-      const dailyPrice = Number(bookingDetails?.unitPrice || 0);
+      // Create a temporary booking ID for navigation
+      const tempBookingId = `temp_car_${Date.now()}_${bookingDetails.carId}`;
 
-      const bookingPayload = {
-        // --- USER INFO ---
-        name: updatedUser?.name,
-        email: updatedUser?.email,
-        phone: updatedUser?.phone,
-        contactNo: updatedUser?.contactNo,
-        address: updatedUser?.address,
-        country: updatedUser?.country,
+      // Prepare data to pass to payment page (no booking creation)
+      const paymentData = {
+        ...bookingDetails,
+        tempBookingId,
+        user: updatedUser,
+        userInfo,
 
-        // --- PRICE INFO (PER-DAY) ---
-        // Backend will do: amount = totalPrice * days
-        convertedPrice: carPrice, // per-day (already converted)
-        totalPrice: carPrice, // per-day (already converted)
+        // Price information
+        carPrice,
+        displayVat: Number(displayVat),
+        displayFinalTotal: Number(displayFinalTotal),
+        days,
+
+        // Currency information
+        userCurrency,
+        userCountry,
+        conversionRate,
         displayCurrency:
           userCurrency ||
           bookingDetails.displayCurrency ||
           bookingDetails.currency ||
           "USD",
-        discountedPrice: bookingDetails.discountedPrice || 0,
-
-        // --- BOOKING INFO ---
-        carBookedFromDate: bookingDetails.pickupDate,
-        carBookedToDate: bookingDetails.returnDate,
-        currency:
-          bookingDetails.baseCurrency || bookingDetails.currency || "USD",
-        location: bookingDetails.location,
-        carName: bookingDetails.carName,
-        carSeats: bookingDetails.carSeats,
-        carCountry: bookingDetails.carCountry,
-        carCancelationPolicy: bookingDetails.carCancelationPolicy,
-        days, // backend multiplies by this
-        guests: bookingDetails.guests || 1,
-        unitPrice: carPrice, // keep per-day here too (converted)
-        description: bookingDetails.carDescription,
-
-        // --- USER REF ---
-        userId: userInfo.id,
-        user: userInfo,
-
-        // --- CURRENCY CONVERSION DETAILS ---
-        userCurrency,
-        userCountry,
-        conversionRate,
-        baseCurrency:
-          bookingDetails.baseCurrency || bookingDetails.currency || "USD",
-        basePrice: bookingDetails.basePrice || bookingDetails.unitPrice || 0,
       };
 
-      const response = await createCarBooking({
-        carId: bookingDetails.carId,
-        data: bookingPayload,
-      }).unwrap();
+      handleSuccess("Proceeding to payment!");
 
-      const bookingId =
-        response?.data?.bookingId ||
-        response?.data?._id ||
-        response?.data?.id ||
-        response?.bookingId ||
-        null;
-
-      if (!bookingId) throw new Error("Booking reference missing from server.");
-
-      setCreatedBookingId(bookingId);
-      handleSuccess("Car booking created successfully!");
-
-      // Show booking confirmation modal and auto-proceed after 3 seconds
-      setShowBookingModal(true);
-      setCountdown(3);
-
-      // Clear any existing timer
-      if (modalTimer) clearTimeout(modalTimer);
-
-      // Set timer to auto-proceed to payment after 3 seconds
-      let secondsLeft = 3;
-      const countdownInterval = setInterval(() => {
-        secondsLeft--;
-        setCountdown(secondsLeft);
-        if (secondsLeft <= 0) {
-          clearInterval(countdownInterval);
-          setShowBookingModal(false);
-          // Navigate to payment page with booking and user data
-          navigate("/car/payment", {
-            state: {
-              bookingDetails: {
-                ...bookingDetails,
-                bookingId: bookingId,
-                // optional: keep vat just for showing breakdown
-                vat: Number(displayVat),
-                user: userInfo,
-
-                // Add currency conversion for payment page
-                userCurrency,
-                userCountry,
-                conversionRate,
-                displayFinalTotal: Number(displayFinalTotal),
-                displayCurrency:
-                  userCurrency ||
-                  bookingDetails.displayCurrency ||
-                  bookingDetails.currency ||
-                  "USD",
-              },
-            },
-          });
-        }
-      }, 1000);
-
-      setModalTimer(countdownInterval);
+      // Navigate to payment page with user info and car details
+      navigate("/car/payment", {
+        state: {
+          bookingDetails: paymentData,
+        },
+      });
     } catch (error) {
-      handleError(
-        error?.data?.message || error?.message || "Failed to create booking."
-      );
+      const msg =
+        error?.data?.message ||
+        error?.message ||
+        "Failed to proceed to payment";
+      handleError(msg);
     } finally {
       setIsProcessing(false);
     }
   };
-
-  /* -------------------------------------------------------------------------- */
-  /*                                UI SECTION                                  */
-  /* -------------------------------------------------------------------------- */
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
