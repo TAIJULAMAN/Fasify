@@ -110,6 +110,12 @@ export default function EventCheckout() {
       finalAdultPrice * adultCount + finalChildPrice * childCount
   );
 
+  // Calculate VAT (5%)
+  const vatRate = 0.05;
+  const subtotal = finalTotal;
+  const vatAmount = subtotal * vatRate;
+  const totalWithVat = subtotal + vatAmount;
+
   if (bookingDetails?.baseAdultPrice && conversionRate && userCurrency) {
     const baseCurrency = bookingDetails?.baseCurrency || "NGN";
 
@@ -129,6 +135,11 @@ export default function EventCheckout() {
     }
 
     finalTotal = finalAdultPrice * adultCount + finalChildPrice * childCount;
+
+    // Recalculate VAT with updated total
+    const updatedSubtotal = finalTotal;
+    const updatedVatAmount = updatedSubtotal * vatRate;
+    finalTotal = updatedSubtotal + updatedVatAmount;
   }
 
   const convertedAdultPrice = finalAdultPrice;
@@ -202,61 +213,27 @@ export default function EventCheckout() {
 
     setIsProcessing(true);
     try {
-      const adults = Number(
-        bookingDetails.adults ?? bookingDetails.guests ?? 1
-      );
-      const children = Number(bookingDetails.children ?? 0);
-      const discountedPrice = Number(
-        bookingDetails.discountPercent ?? bookingDetails.discountedPrice ?? 0
-      );
+      // Create a temporary booking ID for navigation
+      const tempBookingId = `temp_${Date.now()}_${attractionId}`;
 
-      const body = {
-        name: updatedUser.name,
-        email: updatedUser.email,
-        phone: updatedUser.contactNo,
-        address: updatedUser.address,
-        convertedAdultPrice: finalAdultPrice,
-        convertedChildPrice: finalChildPrice,
-        displayCurrency: userCurrency || bookingDetails.displayCurrency,
-        discountedPrice,
-        adults,
-        children,
-        cancelationPolicy,
-        date: bookingDetails.selectedDate,
-        day: bookingDetails.day,
-        from: bookingDetails.selectedFrom,
-        to: bookingDetails.selectedTo,
-
-        // Add currency conversion details
-        userCurrency,
-        userCountry,
-        conversionRate,
-        baseCurrency:
-          bookingDetails.baseCurrency || bookingDetails.currency || "USD",
-        baseAdultPrice:
-          bookingDetails.baseAdultPrice || bookingDetails.unitPrice || 0,
-        baseChildPrice: bookingDetails.baseChildPrice || 0,
+      // Create booking data object with user and event information
+      const bookingData = {
+        id: tempBookingId,
+        ...bookingDetails,
+        user: updatedUser,
+        status: "pending_payment",
+        createdAt: new Date().toISOString(),
+        isTemporary: true,
       };
 
-      const resp = await createAttractionBooking({
-        id: attractionId,
-        body,
-        bookingDetails,
-      }).unwrap();
-
-      const createdBookingId =
-        resp?.data?.id || resp?.id || bookingDetails.bookingId;
-
-      handleSuccess("Event reserved successfully!");
-      navigate(
-        "/event/payment-confirm/" + encodeURIComponent(createdBookingId),
-        {
-          state: {
-            data: resp,
-            bookingDetails,
-          },
-        }
-      );
+      handleSuccess("Proceeding to payment confirmation!");
+      navigate("/event/payment-confirm/" + encodeURIComponent(tempBookingId), {
+        state: {
+          data: bookingData,
+          bookingDetails,
+          userInfo: updatedUser,
+        },
+      });
     } catch (error) {
       const msg =
         error?.data?.message || error?.message || "Failed to create booking";
@@ -451,15 +428,23 @@ export default function EventCheckout() {
                   </div>
                 )}
 
-                <div className="border-t pt-3 mt-3 font-semibold text-lg flex justify-between">
-                  <span>Total</span>
-                  <span>
-                    {currencyLabel} {Number(finalTotal).toLocaleString()}
-                  </span>
+                <div className="border-t pt-3 mt-3 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>VAT (5%)</span>
+                    <span>
+                      {currencyLabel} {Number(vatAmount).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="border-t pt-2 mt-2 font-semibold text-lg flex justify-between">
+                    <span>Total (incl. VAT)</span>
+                    <span>
+                      {currencyLabel} {Number(finalTotal).toLocaleString()}
+                    </span>
+                  </div>
                 </div>
 
                 <p className="text-xs text-gray-500 mt-1">
-                  Taxes and fees included if applicable
+                  All prices include 5% VAT
                 </p>
               </div>
 

@@ -87,11 +87,12 @@ export default function CarCheckout() {
   }, [accessToken, user]);
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [modalTimer, setModalTimer] = useState(null);
+  const [countdown, setCountdown] = useState(3);
+  const [createdBookingId, setCreatedBookingId] = useState(null);
   const [createCarBooking] = useCreateCarBookingMutation();
 
-  /* -------------------------------------------------------------------------- */
-  /*                       🔹 FIXED DAYS CALCULATION                           */
-  /* -------------------------------------------------------------------------- */
   const days = useMemo(() => {
     if (!bookingDetails?.pickupDate || !bookingDetails?.returnDate) return 1;
 
@@ -179,6 +180,13 @@ export default function CarCheckout() {
       bookingDetails?.user?.address ||
       decodedUserInfo?.address ||
       "",
+    country:
+      guest?.country ||
+      user?.country ||
+      bookingDetails?.user?.country ||
+      bookingDetails?.carCountry ||
+      decodedUserInfo?.country ||
+      "",
   });
 
   const userInfo = {
@@ -217,109 +225,51 @@ export default function CarCheckout() {
     setIsProcessing(true);
 
     try {
-      // per‑day price (unit price), will be 100 (or whatever per‑day is)
-      const dailyPrice = Number(bookingDetails?.unitPrice || 0);
+      // Create a temporary booking ID for navigation
+      const tempBookingId = `temp_car_${Date.now()}_${bookingDetails.carId}`;
 
-      const bookingPayload = {
-        // --- USER INFO ---
-        name: updatedUser?.name,
-        email: updatedUser?.email,
-        phone: updatedUser?.phone,
-        contactNo: updatedUser?.contactNo,
-        address: updatedUser?.address,
-        country: updatedUser?.country,
+      // Prepare data to pass to payment page (no booking creation)
+      const paymentData = {
+        ...bookingDetails,
+        tempBookingId,
+        user: updatedUser,
+        userInfo,
 
-        // --- PRICE INFO (PER-DAY) ---
-        // Backend will do: amount = totalPrice * days
-        convertedPrice: carPrice, // per-day (already converted)
-        totalPrice: carPrice, // per-day (already converted)
+        // Price information
+        carPrice,
+        displayVat: Number(displayVat),
+        displayFinalTotal: Number(displayFinalTotal),
+        days,
+
+        // Currency information
+        userCurrency,
+        userCountry,
+        conversionRate,
         displayCurrency:
           userCurrency ||
           bookingDetails.displayCurrency ||
           bookingDetails.currency ||
           "USD",
-        discountedPrice: bookingDetails.discountedPrice || 0,
-
-        // --- BOOKING INFO ---
-        carBookedFromDate: bookingDetails.pickupDate,
-        carBookedToDate: bookingDetails.returnDate,
-        currency:
-          bookingDetails.baseCurrency || bookingDetails.currency || "USD",
-        location: bookingDetails.location,
-        carName: bookingDetails.carName,
-        carSeats: bookingDetails.carSeats,
-        carCountry: bookingDetails.carCountry,
-        carCancelationPolicy: bookingDetails.carCancelationPolicy,
-        days, // backend multiplies by this
-        guests: bookingDetails.guests || 1,
-        unitPrice: carPrice, // keep per-day here too (converted)
-        description: bookingDetails.carDescription,
-
-        // --- USER REF ---
-        userId: userInfo.id,
-        user: userInfo,
-
-        // --- CURRENCY CONVERSION DETAILS ---
-        userCurrency,
-        userCountry,
-        conversionRate,
-        baseCurrency:
-          bookingDetails.baseCurrency || bookingDetails.currency || "USD",
-        basePrice: bookingDetails.basePrice || bookingDetails.unitPrice || 0,
       };
 
-      const response = await createCarBooking({
-        carId: bookingDetails.carId,
-        data: bookingPayload,
-      }).unwrap();
+      handleSuccess("Proceeding to payment!");
 
-      const createdBookingId =
-        response?.data?.bookingId ||
-        response?.data?._id ||
-        response?.data?.id ||
-        response?.bookingId ||
-        null;
-
-      if (!createdBookingId)
-        throw new Error("Booking reference missing from server.");
-
-      handleSuccess("Car reserve successfully!");
-
-      // Payment page uses full total only for DISPLAY
+      // Navigate to payment page with user info and car details
       navigate("/car/payment", {
         state: {
-          bookingDetails: {
-            ...bookingDetails,
-            bookingId: createdBookingId,
-            // optional: keep vat just for showing breakdown
-            vat: Number(displayVat),
-            user: userInfo,
-
-            // Add currency conversion for payment page
-            userCurrency,
-            userCountry,
-            conversionRate,
-            displayFinalTotal: Number(displayFinalTotal),
-            displayCurrency:
-              userCurrency ||
-              bookingDetails.displayCurrency ||
-              bookingDetails.currency ||
-              "USD",
-          },
+          bookingDetails: paymentData,
         },
       });
     } catch (error) {
-      handleError(
-        error?.data?.message || error?.message || "Failed to create booking."
-      );
+      const msg =
+        error?.data?.message ||
+        error?.message ||
+        "Failed to proceed to payment";
+      handleError(msg);
     } finally {
       setIsProcessing(false);
     }
   };
-
-  /* -------------------------------------------------------------------------- */
-  /*                                UI SECTION                                  */
-  /* -------------------------------------------------------------------------- */
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -518,6 +468,41 @@ export default function CarCheckout() {
           </div>
         )}
       </div>
+
+      {/* Booking Confirmation Modal */}
+      {showBookingModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+            <div className="text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                <svg
+                  className="w-8 h-8 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M5 13l4 4L19 7"
+                  ></path>
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                Car Booking Confirmed!
+              </h3>
+              <p className="text-gray-600 mb-2">
+                Your car booking has been successfully created. Booking ID:{" "}
+                {createdBookingId}
+              </p>
+              <p className="text-sm text-blue-600 font-medium">
+                Redirecting to payment in {countdown}...
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

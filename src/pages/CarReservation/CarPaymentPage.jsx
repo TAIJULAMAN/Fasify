@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import {
   useCreateCarPaystackSessionMutation,
   useCreateCarStripeSessionMutation,
+  useCreateCarBookingMutation,
 } from "../../redux/api/car/carApi";
 
 // Helper function to check if a country is in Africa
@@ -87,6 +88,9 @@ export default function PaymentConfirm() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [countdown, setCountdown] = useState(3);
+  const [modalTimer, setModalTimer] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState("stripe");
   const bookingDetails =
     location.state?.bookingDetails ||
@@ -96,16 +100,39 @@ export default function PaymentConfirm() {
 
   const carCancelationPolicy = location.state?.carCancelationPolicy;
   useEffect(() => {
-    if (bookingDetails?.user?.country) {
-      const country = bookingDetails.user.country.toLowerCase();
+    console.log("=== Payment Method Debug ===");
+    console.log("Full bookingDetails:", bookingDetails);
+    console.log("User data:", bookingDetails?.user);
+    console.log("User country:", bookingDetails?.user?.country);
+    console.log("User address:", bookingDetails?.user?.address);
+
+    // Check both country and address fields for country data
+    const userCountry =
+      bookingDetails?.user?.country || bookingDetails?.user?.address;
+
+    if (userCountry) {
+      const country = userCountry.toLowerCase();
+      console.log("User country (lowercase):", country);
       const isUserInAfrica = isAfricanCountry(country);
-      setPaymentMethod(isUserInAfrica ? "paystack" : "stripe");
+      console.log("Is user in Africa:", isUserInAfrica);
+      const selectedMethod = isUserInAfrica ? "paystack" : "stripe";
+      console.log("Selected payment method:", selectedMethod);
+      setPaymentMethod(selectedMethod);
+    } else {
+      console.log("No user country found, defaulting to stripe");
+      console.log(
+        "Available user fields:",
+        Object.keys(bookingDetails?.user || {})
+      );
+      setPaymentMethod("stripe");
     }
-  }, [bookingDetails?.user?.country]);
+    console.log("=== End Debug ===");
+  }, [bookingDetails?.user?.country, bookingDetails?.user?.address]);
 
   // Payment mutations
   const [createPaystackSession] = useCreateCarPaystackSessionMutation();
   const [createStripeSession] = useCreateCarStripeSessionMutation();
+  const [createCarBooking] = useCreateCarBookingMutation();
 
   // Derive base amount and VAT so UI clearly shows tax breakdown
   const days = useMemo(
@@ -174,99 +201,125 @@ export default function PaymentConfirm() {
       return;
     }
 
-    // Resolve a robust booking identifier for the payment session
-    const currentBookingId =
-      bookingId ||
-      bookingDetails?.bookingId ||
-      location.state?.createdBookingId ||
-      bookingDetails?.carId ||
-      null;
-
-    if (!currentBookingId) {
-      toast.error(
-        "Booking reference not found. Please try refreshing the page or contact support."
-      );
-      return;
-    }
-
-    // Check if user data exists
-    if (!bookingDetails?.user) {
-      toast.error("User information missing. Please go back and try again.");
-      return;
-    }
-
     setIsLoading(true);
+
+    try {
+      // Create booking first
+      const bookingPayload = {
+        name:
+          bookingDetails?.user?.name || bookingDetails?.user?.fullName || "",
+        email: bookingDetails?.user?.email || "",
+        phone:
+          bookingDetails?.user?.phone ||
+          bookingDetails?.user?.contactNo ||
+          bookingDetails?.user?.contactNumber ||
+          "",
+        contactNo:
+          bookingDetails?.user?.phone ||
+          bookingDetails?.user?.contactNo ||
+          bookingDetails?.user?.contactNumber ||
+          "",
+        address: bookingDetails?.user?.address || "",
+        country: bookingDetails?.user?.country || "",
+
+        // Price information
+        convertedPrice: unitPrice,
+        totalPrice: unitPrice,
+        displayCurrency: bookingDetails?.currency || "USD",
+        discountedPrice: bookingDetails?.discountedPrice || 0,
+
+        // Booking information
+        carBookedFromDate: bookingDetails?.pickupDate,
+        carBookedToDate: bookingDetails?.returnDate,
+        currency: bookingDetails?.currency || "USD",
+        location: bookingDetails?.location,
+        carName: bookingDetails?.carName,
+        carSeats: bookingDetails?.carSeats,
+        carCancelationPolicy: bookingDetails?.carCancelationPolicy,
+        days: days,
+        guests: bookingDetails?.guests || 1,
+        unitPrice: unitPrice,
+        description: bookingDetails?.carDescription,
+
+        // User reference
+        userId: bookingDetails?.user?.id,
+        user: bookingDetails?.user,
+
+        // Currency conversion
+        userCurrency: bookingDetails?.userCurrency,
+        userCountry: bookingDetails?.userCountry,
+        conversionRate: bookingDetails?.conversionRate,
+        baseCurrency:
+          bookingDetails?.baseCurrency || bookingDetails?.currency || "USD",
+        baseAdultPrice: bookingDetails?.basePrice || bookingDetails?.unitPrice,
+      };
+
+      const response = await createCarBooking({
+        carId: bookingDetails?.carId,
+        data: bookingPayload,
+      }).unwrap();
+
+      const bookingId =
+        response?.data?.bookingId ||
+        response?.data?._id ||
+        response?.data?.id ||
+        response?.bookingId ||
+        null;
+
+      if (!bookingId) throw new Error("Booking reference missing from server.");
+
+      // Show success modal
+      toast.success("Car booking created successfully!");
+      setShowSuccessModal(true);
+      setCountdown(3);
+
+      // Clear any existing timer
+      if (modalTimer) clearTimeout(modalTimer);
+
+      // Set timer to redirect to payment after 3 seconds
+      let secondsLeft = 3;
+      const countdownInterval = setInterval(() => {
+        secondsLeft--;
+        setCountdown(secondsLeft);
+        if (secondsLeft <= 0) {
+          clearInterval(countdownInterval);
+          setShowSuccessModal(false);
+          proceedToPayment(bookingId);
+        }
+      }, 1000);
+
+      setModalTimer(countdownInterval);
+    } catch (error) {
+      // Check for specific car already booked error
+      const errorMessage =
+        error?.data?.message || error?.message || "Failed to create booking";
+
+      if (
+        errorMessage.includes("already booked") ||
+        errorMessage.includes(
+          "This car is already booked for the selected dates"
+        )
+      ) {
+        alert(
+          "This car is already booked for the selected dates. Please choose different dates or another car."
+        );
+      } else {
+        toast.error(errorMessage);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const proceedToPayment = async (bookingId) => {
     try {
       const successUrl = `${window.location.origin}/booking-confirmation`;
       const cancelUrl = `${window.location.origin}/booking-cancellation`;
 
-      // Prepare user information
-      const userInfo = bookingDetails.user;
+      console.log("Proceeding to payment with method:", paymentMethod);
 
-      const bookingConfirmationData = {
-        bookingId: currentBookingId,
-        carName: bookingDetails.carName,
-        pickupDate: bookingDetails.pickupDate,
-        returnDate: bookingDetails.returnDate,
-        guests: bookingDetails.guests || 1,
-        total, // VAT-inclusive total used for confirmation display
-        roomType: bookingDetails.roomType,
-        location: bookingDetails.location,
-        adults: bookingDetails.adults,
-        children: bookingDetails.children,
-        isRefundable: bookingDetails.isRefundable,
-        cancelationPolicy: bookingDetails.cancelationPolicy,
-        vat: bookingDetails.vat,
-        days: bookingDetails.days,
-        user: userInfo,
-        carCancelationPolicy: bookingDetails.carCancelationPolicy,
-        carSeats: bookingDetails.carSeats,
-        carCountry: userInfo?.country,
-      };
-
-      // Store in session storage as fallback
-      sessionStorage.setItem(
-        "lastBooking",
-        JSON.stringify(bookingConfirmationData)
-      );
-      const paymentData = {
-        email: bookingDetails.user.email || "",
-        name:
-          bookingDetails.user.fullName ||
-          bookingDetails.user.name ||
-          "Customer",
-        phone:
-          bookingDetails.user.contactNumber ||
-          bookingDetails.user.phone ||
-          bookingDetails.user.contactNo ||
-          "",
-        currency: bookingDetails.currency || "USD",
-        userId: bookingDetails.user.id,
-        carId: bookingDetails.carId,
-        carName: bookingDetails.carName,
-
-        // These are for logging/metadata only; Stripe/Paystack still use bookingId
-        total, // VAT-inclusive total for reference
-        vat: vatAmount,
-        days: Number(bookingDetails.days || 1),
-
-        successUrl,
-        cancelUrl,
-        metadata: {
-          bookingId: currentBookingId,
-          carId: bookingDetails.carId,
-          userId: bookingDetails.user.id,
-        },
-      };
-
-      // Determine payment method based on user country
-      const userCountry = (bookingDetails.user.country || "").toLowerCase();
-      const isUserInAfrica = isAfricanCountry(userCountry);
-      const selectedMethod = isUserInAfrica ? "paystack" : "stripe";
-      setPaymentMethod(selectedMethod);
-
-      if (selectedMethod === "paystack") {
-        const response = await createPaystackSession(currentBookingId).unwrap();
+      if (paymentMethod === "paystack") {
+        const response = await createPaystackSession(bookingId).unwrap();
 
         const checkoutUrl =
           response?.data?.checkoutUrl ||
@@ -278,19 +331,9 @@ export default function PaymentConfirm() {
           throw new Error("No valid checkout URL found in Paystack response");
         }
 
-        // Store booking data in session storage before redirecting
-        sessionStorage.setItem(
-          "pendingBooking",
-          JSON.stringify({
-            bookingId: currentBookingId,
-            paymentMethod: "paystack",
-            timestamp: new Date().toISOString(),
-          })
-        );
-
         window.location.href = checkoutUrl;
       } else {
-        const response = await createStripeSession(currentBookingId).unwrap();
+        const response = await createStripeSession(bookingId).unwrap();
 
         const checkoutUrl =
           response?.data?.checkoutUrl ||
@@ -302,16 +345,6 @@ export default function PaymentConfirm() {
           throw new Error("No valid checkout URL found in Stripe response");
         }
 
-        // Store booking data in session storage before redirecting
-        sessionStorage.setItem(
-          "pendingBooking",
-          JSON.stringify({
-            number: currentBookingId,
-            paymentMethod: "stripe",
-            timestamp: new Date().toISOString(),
-          })
-        );
-
         window.location.href = checkoutUrl;
       }
     } catch (error) {
@@ -320,8 +353,6 @@ export default function PaymentConfirm() {
           error?.message ||
           "Payment failed. Please try again."
       );
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -432,23 +463,38 @@ export default function PaymentConfirm() {
 
             {/* Right Column - Price Summary */}
             <div className="md:w-1/3 mt-10 md:mt-0">
-              <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 sticky top-6">
-                <h2 className="text-lg font-semibold mb-8">Price Details</h2>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Total Price</span>
+              <div className="bg-white rounded-lg shadow-md border border-gray-200 sticky top-6 p-6">
+                <h2 className="text-lg font-semibold mb-6">Price Details</h2>
+
+                <div className="space-y-4">
+                  {/* Daily Rate */}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">
+                      Daily Rate × {days} days
+                    </span>
                     <span>
-                      {bookingDetails?.currency} {total}
+                      {bookingDetails?.currency} {baseTotal + vatAmount}
                     </span>
                   </div>
 
-                  <div className="mt-6 space-y-3">
+                  {/* Total */}
+                  <div className="border-t pt-4 mt-4">
+                    <div className="flex justify-between font-semibold text-lg">
+                      <span>Total</span>
+                      <span>
+                        {bookingDetails?.currency} {total}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Payment Button */}
+                  <div className="mt-6">
                     <button
                       onClick={handlePayment}
                       disabled={isLoading}
-                      className="w-full bg-blue-600 cursor-pointer hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center disabled:opacity-70"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg disabled:opacity-70"
                     >
-                      {isLoading ? "Processing..." : "Continue"}
+                      {isLoading ? "Processing..." : "Continue And Pay"}
                     </button>
                   </div>
                 </div>
@@ -457,6 +503,49 @@ export default function PaymentConfirm() {
           </div>
         </div>
       </div>
+
+      {/* Booking Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black/25 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 text-center">
+            <div className="mb-4">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg
+                  className="w-8 h-8 text-green-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M5 13l4 4L19 7"
+                  ></path>
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                Booking Created Successfully!
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Your car booking has been confirmed. Redirecting to payment in{" "}
+                {countdown} seconds...
+              </p>
+            </div>
+
+            <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
+              <div
+                className="bg-green-600 h-2 rounded-full transition-all duration-1000"
+                style={{ width: `${(countdown / 3) * 100}%` }}
+              ></div>
+            </div>
+
+            <p className="text-sm text-gray-500">
+              You will be redirected to the payment page automatically
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -59,7 +59,6 @@ export default function CarBookingForm({
     return price * days;
   };
 
-
   const getDays = () => {
     if (!dateRange || !dateRange[0] || !dateRange[1]) return 0;
     const msPerDay = 1000 * 60 * 60 * 24;
@@ -117,7 +116,7 @@ export default function CarBookingForm({
     } else {
       navigate("/car/guest-login", {
         state: {
-          bookingDetails: bookingDetails,
+          bookingData: bookingDetails, // Changed from bookingDetails to bookingData
           returnUrl: "/car/checkout",
         },
       });
