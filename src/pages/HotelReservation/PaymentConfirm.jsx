@@ -140,9 +140,7 @@ export default function PaymentConfirm() {
         err?.data?.message || err?.message || "Failed to create booking";
 
       // Debug logging to see the actual error structure
-      console.log("Hotel booking error details:", err);
-      console.log("Error message:", msg);
-      console.log("Error data:", err?.data);
+
 
       // Enhanced duplicate booking detection
       const isDuplicateBooking =

@@ -100,11 +100,7 @@ export default function PaymentConfirm() {
 
   const carCancelationPolicy = location.state?.carCancelationPolicy;
   useEffect(() => {
-    console.log("=== Payment Method Debug ===");
-    console.log("Full bookingDetails:", bookingDetails);
-    console.log("User data:", bookingDetails?.user);
-    console.log("User country:", bookingDetails?.user?.country);
-    console.log("User address:", bookingDetails?.user?.address);
+  
 
     // Check both country and address fields for country data
     const userCountry =
@@ -112,21 +108,12 @@ export default function PaymentConfirm() {
 
     if (userCountry) {
       const country = userCountry.toLowerCase();
-      console.log("User country (lowercase):", country);
       const isUserInAfrica = isAfricanCountry(country);
-      console.log("Is user in Africa:", isUserInAfrica);
       const selectedMethod = isUserInAfrica ? "paystack" : "stripe";
-      console.log("Selected payment method:", selectedMethod);
       setPaymentMethod(selectedMethod);
     } else {
-      console.log("No user country found, defaulting to stripe");
-      console.log(
-        "Available user fields:",
-        Object.keys(bookingDetails?.user || {})
-      );
       setPaymentMethod("stripe");
     }
-    console.log("=== End Debug ===");
   }, [bookingDetails?.user?.country, bookingDetails?.user?.address]);
 
   // Payment mutations
@@ -315,8 +302,6 @@ export default function PaymentConfirm() {
     try {
       const successUrl = `${window.location.origin}/booking-confirmation`;
       const cancelUrl = `${window.location.origin}/booking-cancellation`;
-
-      console.log("Proceeding to payment with method:", paymentMethod);
 
       if (paymentMethod === "paystack") {
         const response = await createPaystackSession(bookingId).unwrap();
