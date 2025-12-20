@@ -31,7 +31,7 @@ export default function DynamicHumanRightsPolicy() {
               Official Statement
             </Link>
             <button className="py-2 px-1 border-b-2 font-medium text-sm border-blue-500 text-blue-600">
-              Dynamic Policy
+              Human Right Policy
             </button>
           </nav>
         </div>
