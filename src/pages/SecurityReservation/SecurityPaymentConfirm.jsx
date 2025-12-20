@@ -101,24 +101,19 @@ export default function PaymentConfirm() {
   const cancelationPolicy = data?.cancellationPolicy;
   const raw = location.state;
   const totalPrice = raw?.data?.bookingPayload;
-  console.log("Full location.state:", raw);
-  console.log("location.state.data:", raw?.data?.bookingPayload);
-  console.log("location.state.bookingData:", raw?.bookingData);
-
+ 
   // The data structure is: { bookingData: bookingPayload, data: paymentData }
   // paymentData contains: { bookingPayload, data: bookingDetails, user: updatedUser, ... }
   const paymentData = raw?.data || {};
   const bookingPayloadForCreation = raw?.bookingData || {};
 
-  console.log("paymentData:", paymentData);
-  console.log("bookingPayloadForCreation:", bookingPayloadForCreation);
+
 
   // Get the actual booking details from paymentData.data
   const bookingDetails = paymentData?.data || {};
   const userInfo = paymentData?.user || bookingDetails?.user || {};
 
-  console.log("Final bookingDetails:", bookingDetails);
-  console.log("userInfo:", userInfo);
+
 
   // Add fallback data to ensure something displays
   const displayData = {
@@ -179,16 +174,12 @@ export default function PaymentConfirm() {
       bookingDetails?.user?.country ||
       bookingDetails?.address;
 
-    console.log("Country source for payment method:", countrySrc);
+ 
 
     if (countrySrc) {
       const country = String(countrySrc).toLowerCase();
       const isUserInAfrica = isAfricanCountry(country);
       setPaymentMethod(isUserInAfrica ? "paystack" : "stripe");
-      console.log(
-        "Payment method set to:",
-        isUserInAfrica ? "paystack" : "stripe"
-      );
     }
   }, [
     paymentData?.bookingPayload?.address,
@@ -247,10 +238,7 @@ export default function PaymentConfirm() {
       const msg =
         err?.data?.message || err?.message || "Failed to create booking";
 
-      // Debug logging to see the actual error structure
-      console.log("Booking error details:", err);
-      console.log("Error message:", msg);
-      console.log("Error data:", err?.data);
+        // Debug logging to see the actual error structure
 
       // Enhanced duplicate booking detection
       const isDuplicateBooking =
@@ -357,7 +345,7 @@ export default function PaymentConfirm() {
       return;
     }
 
-    console.log("Proceeding with payment for booking ID:", currentBookingId);
+
 
     // Show booking confirmation modal and auto-proceed after 3 seconds
     setShowBookingModal(true);
@@ -390,7 +378,7 @@ export default function PaymentConfirm() {
       bookingDetails?.user?.country ||
       bookingDetails?.address;
 
-    console.log("Payment country source:", countrySrc);
+
 
     if (!countrySrc) {
       toast.error("Please provide country/address for payment method");
@@ -408,7 +396,7 @@ export default function PaymentConfirm() {
       return;
     }
 
-    console.log("Proceeding with payment for booking ID:", currentBookingId);
+   
 
     setIsLoading(true);
     try {
