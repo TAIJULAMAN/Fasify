@@ -259,7 +259,7 @@ export default function HumanRightsStatement() {
               <li>Online reporting form available on our website</li>
               <li>
                 Dedicated email address for human rights concerns:
-                humanrights@fasify.com
+                support@fasifys.com
               </li>
               <li>Anonymous reporting options to protect whistleblowers</li>
               <li>Regular review and investigation of all reported concerns</li>
@@ -273,14 +273,14 @@ export default function HumanRightsStatement() {
             </h3>
             <p className="text-blue-700">
               If you have questions about our Human Rights Statement or need to
-              report a concern, please contact us at
+              report a concern, please contact us at{" "}
               <a
-                href="mailto:humanrights@fasify.com"
+                href="mailto: support@fasifys.com"
                 className="text-blue-600 hover:underline"
               >
-                humanrights@fasify.com
+                support@fasifys.com{" "}
               </a>
-              or call our Human Rights Hotline at +1 (555) 987-6543.
+              or call our Human Rights Hotline at +234 8039960002.
             </p>
           </div>
         </div>
