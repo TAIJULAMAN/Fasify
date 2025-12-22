@@ -101,19 +101,15 @@ export default function PaymentConfirm() {
   const cancelationPolicy = data?.cancellationPolicy;
   const raw = location.state;
   const totalPrice = raw?.data?.bookingPayload;
- 
+
   // The data structure is: { bookingData: bookingPayload, data: paymentData }
   // paymentData contains: { bookingPayload, data: bookingDetails, user: updatedUser, ... }
   const paymentData = raw?.data || {};
   const bookingPayloadForCreation = raw?.bookingData || {};
 
-
-
   // Get the actual booking details from paymentData.data
   const bookingDetails = paymentData?.data || {};
   const userInfo = paymentData?.user || bookingDetails?.user || {};
-
-
 
   // Add fallback data to ensure something displays
   const displayData = {
@@ -174,8 +170,6 @@ export default function PaymentConfirm() {
       bookingDetails?.user?.country ||
       bookingDetails?.address;
 
- 
-
     if (countrySrc) {
       const country = String(countrySrc).toLowerCase();
       const isUserInAfrica = isAfricanCountry(country);
@@ -222,10 +216,35 @@ export default function PaymentConfirm() {
       return null;
     }
 
+    // Debug logging to see what's being passed
+    console.log("=== Security Booking Debug ===");
+    console.log("actualBookingPayload:", actualBookingPayload);
+    console.log("guardId:", actualBookingPayload.guardId);
+    console.log("securityId:", actualBookingPayload.securityId);
+    console.log("id:", actualBookingPayload.id);
+    console.log("securityGuardId:", actualBookingPayload.securityGuardId);
+    console.log("All keys:", Object.keys(actualBookingPayload));
+
+    // Try different ID fields in order of preference
+    const idToUse =
+      actualBookingPayload.securityId ||
+      actualBookingPayload.securityProtocolId ||
+      actualBookingPayload.securityGuardId ||
+      actualBookingPayload.id ||
+      actualBookingPayload.guardId;
+
+    console.log("Using ID:", idToUse);
+
+    // Validate ID exists
+    if (!idToUse || idToUse === "null" || idToUse === "undefined") {
+      toast.error("Security ID is missing or invalid");
+      return null;
+    }
+
     setIsCreatingBooking(true);
     try {
       const res = await createSecurityBooking({
-        id: actualBookingPayload.guardId,
+        id: idToUse,
         body: actualBookingPayload,
       }).unwrap();
 
@@ -238,7 +257,7 @@ export default function PaymentConfirm() {
       const msg =
         err?.data?.message || err?.message || "Failed to create booking";
 
-        // Debug logging to see the actual error structure
+      // Debug logging to see the actual error structure
 
       // Enhanced duplicate booking detection
       const isDuplicateBooking =
@@ -345,8 +364,6 @@ export default function PaymentConfirm() {
       return;
     }
 
-
-
     // Show booking confirmation modal and auto-proceed after 3 seconds
     setShowBookingModal(true);
     setCountdown(3);
@@ -378,8 +395,6 @@ export default function PaymentConfirm() {
       bookingDetails?.user?.country ||
       bookingDetails?.address;
 
-
-
     if (!countrySrc) {
       toast.error("Please provide country/address for payment method");
       return;
@@ -395,8 +410,6 @@ export default function PaymentConfirm() {
       toast.error("Invalid booking ID for payment");
       return;
     }
-
-   
 
     setIsLoading(true);
     try {

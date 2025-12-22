@@ -227,7 +227,7 @@ export default function SecurityServiceDetails() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-[11px] font-medium text-gray-700">
                       <Shield className="w-3.5 h-3.5 text-gray-600" />
-                      {availableGuards[0].category}
+                      {availableGuards[0]?.category || "Security"}
                     </span>
 
                     <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-medium text-blue-700">
@@ -263,7 +263,8 @@ export default function SecurityServiceDetails() {
 
                 <div className="bg-white/70 border border-gray-100 rounded-xl shadow-sm p-3 mb-3">
                   <h3 className="text-base font-semibold text-gray-900">
-                    {availableGuards[0].securityGuardDescription}
+                    {availableGuards[0]?.securityGuardDescription ||
+                      "Security Service"}
                   </h3>
                 </div>
 
@@ -399,7 +400,7 @@ export default function SecurityServiceDetails() {
                     {availableGuards[0]?.category && (
                       <div>
                         <span className="font-semibold">Category: </span>
-                        <span>{availableGuards[0].category}</span>
+                        <span>{availableGuards[0]?.category}</span>
                       </div>
                     )}
 
