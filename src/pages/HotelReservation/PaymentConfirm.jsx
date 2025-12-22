@@ -100,6 +100,15 @@ export default function PaymentConfirm() {
   const bookingPayload = location.state?.bookingData;
   const hotelData = bookingDetails?.data || bookingDetails || {};
 
+  // Get currency with proper fallbacks
+  const displayCurrency =
+    hotelData.displayCurrency ||
+    bookingDetails?.displayCurrency ||
+    bookingPayload?.displayCurrency ||
+    bookingDetails?.currency ||
+    hotelData.currency ||
+    "USD";
+
   // Payment mutations
   const [createPaystackSession] =
     useCreateHotelPaystackCheckoutSessionMutation();
@@ -123,6 +132,20 @@ export default function PaymentConfirm() {
       return null;
     }
 
+    // Debug logging to understand the data structure
+    console.log("BookingPayload:", bookingPayload);
+    console.log("RoomId:", bookingPayload.roomId);
+
+    // Validate that roomId exists and is not null
+    if (
+      !bookingPayload.roomId ||
+      bookingPayload.roomId === "null" ||
+      bookingPayload.roomId === "undefined"
+    ) {
+      toast.error("Room ID is missing or invalid. Please try again.");
+      return null;
+    }
+
     setIsCreatingBooking(true);
     try {
       const res = await createHotelBooking({
@@ -140,7 +163,6 @@ export default function PaymentConfirm() {
         err?.data?.message || err?.message || "Failed to create booking";
 
       // Debug logging to see the actual error structure
-
 
       // Enhanced duplicate booking detection
       const isDuplicateBooking =
@@ -224,29 +246,11 @@ export default function PaymentConfirm() {
       return;
     }
 
-    // Show booking confirmation modal and auto-proceed after 3 seconds
-    setShowBookingModal(true);
-    setCountdown(3);
-
-    // Clear any existing timer
-    if (modalTimer) clearTimeout(modalTimer);
-
-    // Set timer to auto-proceed to payment after 3 seconds
-    let secondsLeft = 3;
-    const countdownInterval = setInterval(() => {
-      secondsLeft--;
-      setCountdown(secondsLeft);
-      if (secondsLeft <= 0) {
-        clearInterval(countdownInterval);
-        setShowBookingModal(false);
-        proceedToPayment();
-      }
-    }, 1000);
-
-    setModalTimer(countdownInterval);
+    // Proceed directly to payment without modal
+    proceedToPayment(currentBookingId);
   };
 
-  const proceedToPayment = async () => {
+  const proceedToPayment = async (currentBookingId) => {
     if (!bookingDetails?.user?.country) {
       toast.error("Please select a country");
       return;
@@ -255,7 +259,6 @@ export default function PaymentConfirm() {
     setIsLoading(true);
 
     try {
-      const currentBookingId = createdBookingId;
       const successUrl = `${window.location.origin}/booking-confirmation`;
       const cancelUrl = `${window.location.origin}/hotel/checkout`;
 
@@ -540,7 +543,7 @@ export default function PaymentConfirm() {
                   <div className="flex justify-between">
                     <span>Room Price (Incl. VAT)</span>
                     <span>
-                      {hotelData.displayCurrency} {total.toFixed(2)}
+                      {displayCurrency} {total.toFixed(2)}
                     </span>
                   </div>
 
@@ -548,7 +551,7 @@ export default function PaymentConfirm() {
                     <div className="flex justify-between text-lg font-semibold">
                       <span>Total</span>
                       <span>
-                        {hotelData.displayCurrency} {total.toFixed(2)}
+                        {displayCurrency} {total.toFixed(2)}
                       </span>
                     </div>
                   </div>
