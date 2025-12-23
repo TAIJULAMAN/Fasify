@@ -100,8 +100,6 @@ export default function PaymentConfirm() {
 
   const carCancelationPolicy = location.state?.carCancelationPolicy;
   useEffect(() => {
-  
-
     // Check both country and address fields for country data
     const userCountry =
       bookingDetails?.user?.country || bookingDetails?.user?.address;
@@ -255,27 +253,9 @@ export default function PaymentConfirm() {
 
       if (!bookingId) throw new Error("Booking reference missing from server.");
 
-      // Show success modal
+      // Show success toast and go directly to payment
       toast.success("Car booking created successfully!");
-      setShowSuccessModal(true);
-      setCountdown(3);
-
-      // Clear any existing timer
-      if (modalTimer) clearTimeout(modalTimer);
-
-      // Set timer to redirect to payment after 3 seconds
-      let secondsLeft = 3;
-      const countdownInterval = setInterval(() => {
-        secondsLeft--;
-        setCountdown(secondsLeft);
-        if (secondsLeft <= 0) {
-          clearInterval(countdownInterval);
-          setShowSuccessModal(false);
-          proceedToPayment(bookingId);
-        }
-      }, 1000);
-
-      setModalTimer(countdownInterval);
+      proceedToPayment(bookingId);
     } catch (error) {
       // Check for specific car already booked error
       const errorMessage =
@@ -488,49 +468,6 @@ export default function PaymentConfirm() {
           </div>
         </div>
       </div>
-
-      {/* Booking Success Modal */}
-      {showSuccessModal && (
-        <div className="fixed inset-0 bg-black/25 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 text-center">
-            <div className="mb-4">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg
-                  className="w-8 h-8 text-green-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M5 13l4 4L19 7"
-                  ></path>
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Booking Created Successfully!
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Your car booking has been confirmed. Redirecting to payment in{" "}
-                {countdown} seconds...
-              </p>
-            </div>
-
-            <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
-              <div
-                className="bg-green-600 h-2 rounded-full transition-all duration-1000"
-                style={{ width: `${(countdown / 3) * 100}%` }}
-              ></div>
-            </div>
-
-            <p className="text-sm text-gray-500">
-              You will be redirected to the payment page automatically
-            </p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

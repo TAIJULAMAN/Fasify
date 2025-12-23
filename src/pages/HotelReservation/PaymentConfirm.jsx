@@ -132,9 +132,7 @@ export default function PaymentConfirm() {
       return null;
     }
 
-    // Debug logging to understand the data structure
-    console.log("BookingPayload:", bookingPayload);
-    console.log("RoomId:", bookingPayload.roomId);
+   
 
     // Validate that roomId exists and is not null
     if (

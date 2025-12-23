@@ -93,9 +93,6 @@ export default function PaymentConfirm() {
   const [isCreatingBooking, setIsCreatingBooking] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("stripe");
   const [createdBookingId, setCreatedBookingId] = useState(null);
-  const [showBookingModal, setShowBookingModal] = useState(false);
-  const [modalTimer, setModalTimer] = useState(null);
-  const [countdown, setCountdown] = useState(3);
 
   const data = location.state?.data2;
   const cancelationPolicy = data?.cancellationPolicy;
@@ -216,15 +213,6 @@ export default function PaymentConfirm() {
       return null;
     }
 
-    // Debug logging to see what's being passed
-    console.log("=== Security Booking Debug ===");
-    console.log("actualBookingPayload:", actualBookingPayload);
-    console.log("guardId:", actualBookingPayload.guardId);
-    console.log("securityId:", actualBookingPayload.securityId);
-    console.log("id:", actualBookingPayload.id);
-    console.log("securityGuardId:", actualBookingPayload.securityGuardId);
-    console.log("All keys:", Object.keys(actualBookingPayload));
-
     // Try different ID fields in order of preference
     const idToUse =
       actualBookingPayload.securityId ||
@@ -232,8 +220,6 @@ export default function PaymentConfirm() {
       actualBookingPayload.securityGuardId ||
       actualBookingPayload.id ||
       actualBookingPayload.guardId;
-
-    console.log("Using ID:", idToUse);
 
     // Validate ID exists
     if (!idToUse || idToUse === "null" || idToUse === "undefined") {
@@ -364,27 +350,8 @@ export default function PaymentConfirm() {
       return;
     }
 
-    // Show booking confirmation modal and auto-proceed after 3 seconds
-    setShowBookingModal(true);
-    setCountdown(3);
-
-    // Clear any existing timer
-    if (modalTimer) clearTimeout(modalTimer);
-
-    // Set timer to auto-proceed to payment after 3 seconds
-    let secondsLeft = 3;
-    const countdownInterval = setInterval(() => {
-      secondsLeft--;
-      setCountdown(secondsLeft);
-      if (secondsLeft <= 0) {
-        clearInterval(countdownInterval);
-        setShowBookingModal(false);
-        // Ensure proceedToPayment is called with the correct booking ID
-        proceedToPayment(currentBookingId);
-      }
-    }, 1000);
-
-    setModalTimer(countdownInterval);
+    // Go directly to payment without modal
+    proceedToPayment(currentBookingId);
   };
 
   const proceedToPayment = async (bookingId) => {
@@ -531,7 +498,7 @@ export default function PaymentConfirm() {
             {/* LEFT COLUMN */}
             <div className="md:w-2/3 space-y-8">
               {/* Security Info Card */}
-              <div className="bg-gray-50 p-5 rounded-lg ">
+              <div className="bg-gray-50 p-5 rounded-lg">
                 <h3 className="text-xl font-semibold mb-2">
                   Security Service:{" "}
                   {displayData?.securityName ||
@@ -710,41 +677,6 @@ export default function PaymentConfirm() {
           </div>
         </div>
       </div>
-
-      {/* Booking Confirmation Modal */}
-      {showBookingModal && (
-        <div className="fixed inset-0 bg-black/25 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg
-                  className="w-8 h-8 text-green-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M5 13l4 4L19 7"
-                  ></path>
-                </svg>
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                Booking Confirmed!
-              </h3>
-              <p className="text-gray-600 mb-2">
-                Your security booking has been successfully created. Booking ID:{" "}
-                {createdBookingId}
-              </p>
-              <p className="text-sm text-blue-600 font-medium">
-                Redirecting to payment in {countdown}...
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
       <ToastContainer />
     </div>
